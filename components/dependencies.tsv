@@ -1,0 +1,7 @@
+# spec: BUILD.md "Dependency dispositions" -- one row per framework the
+#       pinned iTerm2 3.0.15 links or embeds: <name>\t<disposition>\t<reason>. The build links and
+#       bundles only rows whose disposition is rebuild; drop rows must leave no trace in the app.
+ColorPicker	rebuild	source in the pinned archive (ColorPicker/, LGPL 2.1); built for x86_64 and 10.9, never the prebuilt framework
+Growl	drop	defunct; source and license of the prebuilt framework unidentified; notifications go through NSUserNotificationCenter
+NMSSH	drop	prebuilt with libssh2 1.7.0 (CVE-2019-3855) and OpenSSL 1.0.2g; scp transfers report that they are unavailable
+Sparkle	drop	the family updater replaces the embedded engine; Check for Updates launches it

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>Mavergreen/shipyard"
+  ],
+  "gitIgnoredAuthors": [
+    "342268518+mavergreen-pins-bot[bot]@users.noreply.github.com"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The upstream iTerm2 source (components/iterm2/version): a release tag and its commit. SHA256 follows from DIGEST and must be updated with it; UPSTREAM_VERSION and components/iterm2-resources/version must move to the same release (build/prepare-inputs.sh refuses a mismatch).",
+      "managerFilePatterns": [
+        "/^components/iterm2/version$/"
+      ],
+      "matchStrings": [
+        "REPO=https://github\\.com/(?<depName>gnachman/iTerm2)\\s+REF=(?<currentValue>v\\S+)\\s+DIGEST=(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "The clang22 that compiles every target (components/clang22/version; clang22 on 10.9, clang22-cross on a modern Mac). build/prepare-inputs.sh refuses an installed release other than the pin.",
+      "managerFilePatterns": [
+        "/^components/clang22/version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\S+)\\s*$"
+      ],
+      "depNameTemplate": "Mavergreen/clang-22",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-mavericks\\.(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Recaulk, whose sdk-metadata recipes give the 10.9 SDK the Foundation generic declarations the sources use. build/prepare-inputs.sh refuses an installed release other than the pin.",
+      "managerFilePatterns": [
+        "/^components/recaulk/version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\S+)\\s*$"
+      ],
+      "depNameTemplate": "Mavergreen/recaulk",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^(?<major>\\d{8})\\.(?<minor>\\d+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": [
+        "gnachman/iTerm2"
+      ],
+      "allowedVersions": "<3.1",
+      "description": "Capped at 3.0.x: 3.1.0 requires OS X 10.10 (iterm2.com/downloads), and a build passing is not evidence of everyday use on 10.9. The cap ends when a newer upstream passes the Mavericks acceptance suite (spec: 2026-10-31-iterm2-design.md, advancement)."
+    }
+  ]
+}

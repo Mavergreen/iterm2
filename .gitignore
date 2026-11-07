@@ -1,0 +1,6 @@
+.superpowers/
+CMakeUserPresets.json
+# macOS cruft (._* is what an NFS mount sprays when COPYFILE_DISABLE is unset)
+._*
+.DS_Store
+/VERSION
