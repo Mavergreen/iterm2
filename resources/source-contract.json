@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "source": {"repo": "https://github.com/gnachman/iTerm2", "ref": "v3.0.15", "digest": "687aedf89cc860e273e16309b4b902a533d047db"},
+  "resources": {"url": "https://iterm2.com/downloads/stable/iTerm2-3_0_15.zip", "sha256": "90e6f2bd3eb2d245f4ab2c9f856c627c8a1536bac024fb3989db417bc3147565", "release_version": "3.0.15", "built_with": "Xcode 0821 / 8C1002, SDK macosx10.12 (the release's Info.plist)"},
+  "verified": [
+    "each XIB in the app target's resources phase has exactly one same-named compiled nib in the release ZIP, at the SHA-256 below",
+    "UKCrashReporter.nib is upstream's precompiled nib, taken from the same release",
+    "the compiled model (Model.momd) names the same four entities as Model.xcdatamodeld",
+    "the release's CFBundleShortVersionString and CFBundleVersion are 3.0.15 (checked again at every extraction)"
+  ],
+  "unproven": [
+    "that the release was compiled from commit 687aedf8 exactly: no attestation links them",
+    "that each nib is the exact compiler transformation of its XIB at that commit",
+    "that the compiled model equals Model.xcdatamodeld attribute for attribute",
+    "that the nibs and model load on 10.9: runtime acceptance is a later, separately authorized suite"
+  ],
+  "xib_to_nib": [
+    {"xib": "Interfaces/AboutWindow.xib", "xib_sha256": "bac2948a2f94875ef612aba456de0a7da0ad19b0e7eae9f0ae46cf3bc7d98ac6", "nib": "AboutWindow.nib", "nib_sha256": "0294753993058dfc6f1e996cbdb8a0746297d5cf6661c6c963704f3479881eb1"},
+    {"xib": "Interfaces/AdvancedWorkingDirectoryWindow.xib", "xib_sha256": "d7351342d71f9e7b97db3077f7ee6f39d245020eecf395a07647aeb0fd4cf4e5", "nib": "AdvancedWorkingDirectoryWindow.nib", "nib_sha256": "aa97f4ca0e6ef0ed8da115db7b35fc2b67ac88fb853c4cefd079b68c4c36e5a0"},
+    {"xib": "Interfaces/Autocomplete.xib", "xib_sha256": "89a1ba7171ddd66689fae49695cbc76a9e14583a28067802b24b6d53a8788201", "nib": "Autocomplete.nib", "nib_sha256": "bcfbbe86c69e5f816f1659fff27a9435b3c24227e89739d8582315c466842808"},
+    {"xib": "Interfaces/BulkCopyProfilePreferences.xib", "xib_sha256": "c55050fbfbdf80e93ef996ca6c0fa3bf33e7a6d037569e09e1b09f21096d8826", "nib": "BulkCopyProfilePreferences.nib", "nib_sha256": "fd6a69965b54dc45623c1e2be5dbd7bfce7abe444eee69863536363a4ac60122"},
+    {"xib": "Interfaces/CommandHistoryPopup.xib", "xib_sha256": "ca248621aac8bc06a148f48739c9e181651f5b73deffe0f02f19aa687af4eac4", "nib": "CommandHistoryPopup.nib", "nib_sha256": "0727e8f428ca0772250c25e17e26cea486cef8d8dc49df88d239ef72eab2b0c4"},
+    {"xib": "Interfaces/DirectoriesPopup.xib", "xib_sha256": "09e99793342fd91b2423cdbef053e063d8a81e8d52ca513f13bbf0da652a391c", "nib": "DirectoriesPopup.nib", "nib_sha256": "29be4c8edf698c0ad7a4623d025ca4ab6792e4b92ad294f2b7d4dde8d7db7c86"},
+    {"xib": "Interfaces/FindView.xib", "xib_sha256": "a1dd0244b6980f5fffc13797510df379744b173d7632b0d22ebe38b56e1b20a8", "nib": "FindView.nib", "nib_sha256": "a4e8cfe58f6271f3dc75fe8b53ca6f69a7d9b2fd49f1001f8b9e4d0127323f27"},
+    {"xib": "Interfaces/GlobalSearch.xib", "xib_sha256": "8834f6f2e0e5e075f52c78b01b25be652f6af09275b9b62ccfe296c133c64907", "nib": "GlobalSearch.nib", "nib_sha256": "ec48c2c31d145d3443b286d3ad558df857b730a6124f0d7ac768d4144bb27593"},
+    {"xib": "Interfaces/InstantReplay.xib", "xib_sha256": "2e5be927a0f0eb410ee11caaa57801a3f6d98d7c3be45d2cfac1394259e9be93", "nib": "InstantReplay.nib", "nib_sha256": "e6c1b8cc32a3bc4e367b30c1e5657c80d7d06a5c618caad75d5faee929139024"},
+    {"xib": "Interfaces/MainMenu.xib", "xib_sha256": "bee36c37c7a057873cdc4334b9b47c712a5428cc1018c9fa2e8f9f532a794cd9", "nib": "MainMenu.nib", "nib_sha256": "55f9d72df857c1019cd23c2c35b4ca312931d613efea87528d930aa6a11d3768"},
+    {"xib": "Interfaces/NumberOfSpacesAccessoryView.xib", "xib_sha256": "e70edbd2bfd9dd0b8184777a5eea0e82d2ec87d300415302e1069fb37d8afa7b", "nib": "NumberOfSpacesAccessoryView.nib", "nib_sha256": "3a845d3627cadc1d5eed5e03ad8d27d3b58312965d395963dfcb2c3747d25b25"},
+    {"xib": "Interfaces/PasteView.xib", "xib_sha256": "c156cddf2991733be393c42a55e6021321bc8b8dc5d50c371bd4479ae0788f1e", "nib": "PasteView.nib", "nib_sha256": "1dd2adb2d09ba508d5c91c8bedc55368a4368e3a6d7773b94d18298d637ff938"},
+    {"xib": "Interfaces/PasteboardHistory.xib", "xib_sha256": "8205e3ad1d7bc2aa0fb7a2194645349c560a4f2a5831a771660f52808b164d88", "nib": "PasteboardHistory.nib", "nib_sha256": "689238a9363d7651bfa539ae26dce86f5be38f90d62007660bd90a7e170f9f5e"},
+    {"xib": "Interfaces/PreferencePanel.xib", "xib_sha256": "b4998ed1e12d7699456f921f30bf16bb6d63d4cf86da1efac6855c7f962e3c49", "nib": "PreferencePanel.nib", "nib_sha256": "80dfd045ad4b0f1ccf2d5697b9c5edb971235d81be3d6c4c4aff2518b32d47b4"},
+    {"xib": "Interfaces/ProfilesWindow.xib", "xib_sha256": "875a419271742e77d8b726a93f8b6d446ea65df8b943ed5b3049c1a1d0184d39", "nib": "ProfilesWindow.nib", "nib_sha256": "ed8e2b3eab3a8936c7c22b7ba2f6cec53fa26edf91802b362f411bff1d0db5ca"},
+    {"xib": "Interfaces/PseudoTerminal.xib", "xib_sha256": "e2ed14b8a6b9893806b57c0270859e6c49ecfb27f678aa43c2b3169eeaffc1e5", "nib": "PseudoTerminal.nib", "nib_sha256": "10c47ff0133064098bd9d3746166db2232c58753da2990060debaed05ce869a3"},
+    {"xib": "Interfaces/SplitPanel.xib", "xib_sha256": "27a81b0904e2a56720b895acd58566bc6039a7afd2b0523a6b7342373e9f02e9", "nib": "SplitPanel.nib", "nib_sha256": "bd4145d5d96c64cf13f2c65330a046a10a56ca492d9f2e7a0b4aa3318e3fe9bf"},
+    {"xib": "Interfaces/TmuxDashboard.xib", "xib_sha256": "325f6b84372f5987466d39f61a886215744a4459738ed76141a4d50bbb138f31", "nib": "TmuxDashboard.nib", "nib_sha256": "dc023ad6f49074ea73805950fe09cc5c99b4731977d5919ca16818efb6c1bc6c"},
+    {"xib": "Interfaces/iTermEditKeyActionWindowController.xib", "xib_sha256": "208ca8ddf3b5376ca90c00fb4911c60de844aefe23a4eed10bf3cddc3647a300", "nib": "iTermEditKeyActionWindowController.nib", "nib_sha256": "ec2f73576be0c62f4310ed25399fe81624e6655bb1db7c27a0867027bc01ed77"},
+    {"xib": "Interfaces/iTermKeyMapping.xib", "xib_sha256": "3deda2621cc4b1367e4789a994c1bf9686a3d2799e795b80ba701f02039cee21", "nib": "iTermKeyMapping.nib", "nib_sha256": "c81649a64e2d8f012e4ed68cef41b3f6399738ff72a453a0dabaca04e21e3e0b"},
+    {"xib": "Interfaces/iTermOpenQuicklyWindowController.xib", "xib_sha256": "8d6a9f29e03a19fc81cffecaa26541935abc503ad2df873d31eeb7908d8ab04e", "nib": "iTermOpenQuicklyWindowController.nib", "nib_sha256": "4b51f7eb9b346a2a5b4a57b01b73cc509b9caeaff1786ba26a010625be817353"},
+    {"xib": "Interfaces/iTermPasswordManager.xib", "xib_sha256": "e5988986e2820d0965cee8036224f8463164c991b883702e46ce70df91dfbe38", "nib": "iTermPasswordManager.nib", "nib_sha256": "494c09c856135cc559179d6604fc7aa3004c870d95ec09a8f30c05682be1f01f"},
+    {"xib": "Interfaces/iTermPasteSpecialViewController.xib", "xib_sha256": "272f596a7fe416c236e978c8cbfc08f0f0ced6ef3cd1c7a0b269d73be25f962a", "nib": "iTermPasteSpecialViewController.nib", "nib_sha256": "bed37d384afe3790a995bea04e92afb2f6c116c2b857117163cde186ff7340cd"},
+    {"xib": "Interfaces/iTermPasteSpecialWindow.xib", "xib_sha256": "80b31ba2d439a594c4e0683391dd9e3de59d36626e2e51cc1a11366f2336176a", "nib": "iTermPasteSpecialWindow.nib", "nib_sha256": "9abc0069a63bb0be39d8f62b2f15195e36662d627be47b8260835f5b6fef44ca"},
+    {"xib": "Interfaces/iTermWindowShortcutAccessoryView.xib", "xib_sha256": "85225ea7ce2534a71054731e2d7dbf823cb8bc2971620e863c3b7187ef7a141a", "nib": "iTermWindowShortcutAccessoryView.nib", "nib_sha256": "6a54640a1819e7b397ab1b85cd42f6555cb8d5b731d4d4fe2bd24ff9aadee34f"},
+    {"xib": "sources/iTermPrintAccessoryViewController.xib", "xib_sha256": "ddcb1e1ae95c3154106234f48433b482ea5b66bfa13d71bc10d8f022c858084f", "nib": "iTermPrintAccessoryViewController.nib", "nib_sha256": "888c1adb42c1d67c50ca76d9036c68b973e8dc66172ad04d38be0093995bca26"},
+    {"xib": "sources/iTermTipCardViewController.xib", "xib_sha256": "be4b1b5c1bfa3524a4e7b9b43b7908102220ab4080ac6c0895892cb62f60f434", "nib": "iTermTipCardViewController.nib", "nib_sha256": "98b40168791de0cba236d8941726d449896f7297cfeda26b472e1ae936188acd"},
+    {"xib": "sources/iTermTipWindowController.xib", "xib_sha256": "05ceb6e08d12770cab7109e83392e0211ea6d40299167680f3d78bdcfb2a524e", "nib": "iTermTipWindowController.nib", "nib_sha256": "92775ee74e1a10a8864bf71267c7acc81910efadbd14d01227cec0ea7910a75c"}
+  ],
+  "precompiled_nibs": [{"nib": "UKCrashReporter.nib", "nib_sha256": "d01cebc2e5d619bc203d4206d421729e6b7146ec184e76f0f016c6d1da149544", "source": "ThirdParty/UKCrashReporter/UKCrashReporter.nib"}],
+  "model": {
+    "source": "Model.xcdatamodeld",
+    "compiled": ["Model.momd/Model.mom", "Model.momd/VersionInfo.plist"],
+    "entities": {
+      "CommandHistoryCommandUse": {"entry": "CommandHistoryEntry"},
+      "CommandHistoryEntry": {"remoteHost": "HostRecord", "uses": "CommandHistoryCommandUse (to-many, ordered)"},
+      "HostRecord": {"directories": "RecentDirectory (to-many)", "entries": "CommandHistoryEntry (to-many)"},
+      "RecentDirectory": {"remoteHost": "HostRecord"}
+    }
+  },
+  "resource_consumers": {
+    "image_decoder": "sources/iTermImageDecoderDriver.m:109,113 -- [NSBundle pathForResource:] in Contents/Resources",
+    "image_decoder.sb": "sources/iTermImageDecoderDriver.m -- the sandbox profile beside image_decoder",
+    "MainMenu.nib": "Info.plist NSMainNibFile; its SUUpdater object binds to product/SUUpdater.m",
+    "iTerm2.sdef": "Info.plist OSAScriptingDefinition",
+    "iTerm2.icns": "Info.plist CFBundleIconFile"
+  }
+}

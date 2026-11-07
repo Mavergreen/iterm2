@@ -16,3 +16,10 @@
 - NMSSH is dropped: its prebuilt framework carries libssh2 1.7.0 (CVE-2019-3855) and OpenSSL 1.0.2g. scp transfers report that they are unavailable, until the family has a maintained libssh2 and OpenSSL for 10.9.
 - The embedded Sparkle is dropped: Check for Updates launches the family updater.
 
+## Bundle assembly
+
+- The 29 nibs and the compiled Core Data model come from upstream's 3.0.15 release ZIP (`resources/compiled.tsv`, measured hashes), extracted by shipyard's `mavericks_extract_resource_members`; this build has no nib or model compiler. `resources/source-contract.json` records what is verified about that pairing and what is not.
+- Every other resource is copied from the pinned source as listed in `resources/app-resources.tsv`. Upstream's Xcode combined `foo.png` and `foo@2x.png` into HiDPI TIFFs (`COMBINE_HIDPI_IMAGES`); this build ships the PNG pairs, which `NSImage` resolves by name the same way.
+- `iTerm2.icns` is made by `iconutil` from `Media.xcassets/AppIcon.appiconset`; a catalog with anything more is refused.
+- Info.plist is upstream's with the identity from the design spec (`dev.mavergreen.iterm2.app`, Mavericks iTerm2), the `-mavericks.N` version and its comparison key, the 10.9 floor, and no Sparkle keys. `build/check-bundle.sh` refuses any bundle that differs from these inputs.
+- Dropped from upstream's bundle: `dsa_pub.pem` (Sparkle), `Growl Registration Ticket.growlRegDict`, and the Growl, NMSSH and Sparkle frameworks.

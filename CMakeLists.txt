@@ -60,3 +60,16 @@ iterm_add_targets(
   PRODUCT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/product")
 iterm_link_colorpicker(iTerm2Shared iTerm2)
 
+# spec: BUILD.md "Resources and the bundle" -- the first historical version is
+#       <upstream>-mavericks.N, resolved from UPSTREAM_VERSION and the shipped tags.
+include(MavericksVersion)
+mavericks_resolve_version(ITERM_PRODUCT_VERSION)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermResources.cmake")
+iterm_add_bundle(
+  SOURCE_DIR "${ITERM_SOURCE_DIR}"
+  ZIP "${ITERM_RESOURCES_ZIP}"
+  ZIP_SHA256 "${ITERM_RESOURCES_SHA256}"
+  UPSTREAM_VERSION "${ITERM_UPSTREAM_VERSION}"
+  VERSION "${ITERM_PRODUCT_VERSION}"
+  HOST_COMPILER "${ITERM_CLANG22_COMPILER}"
+  OUTPUT_DIR "${CMAKE_BINARY_DIR}/resource-inputs")
