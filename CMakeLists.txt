@@ -1,0 +1,62 @@
+cmake_minimum_required(VERSION 3.25)
+# usage: sh build/prepare-inputs.sh "$TMPDIR/mm-build/mavergreen-iterm2-inputs"
+#        shipyard-cmake --preset native   (on 10.9; --preset cross on a modern Mac)
+#        shipyard-cmake --build --preset native
+# spec: BUILD.md "Inputs" -- the verified inputs are read, and their clang22 selected, before project(), so
+#       compiler detection runs only the verified family compiler.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermInputs.cmake")
+project(iTerm2 VERSION ${ITERM_UPSTREAM_VERSION} LANGUAGES C OBJC)
+iterm_check_compiler()
+
+find_package(MavericksShipyard REQUIRED)
+# platform: the family's clang22 compiles every target: the 3.0.15 sources use Objective-C lightweight
+#           generics, which Apple clang on 10.9 cannot parse; BUILD.md "Inputs". Only the
+#           AppleClang identity gate is off; the mode, pinned SDK and compatibility gates stay.
+set(MAVERICKS_REQUIRE_APPLECLANG OFF)
+include(Mavericks)
+include(MavericksSDKMetadata)
+include(MavericksXcodeInputs)
+
+mavericks_export_xcode_sources(ITERM_SOURCES_FILE
+  PROJECT "${ITERM_SOURCE_DIR}/iTerm2.xcodeproj"
+  TARGETS iTerm2 iTerm2Shared SSKeychain image_decoder
+  PREFIXES ITERM2 ITERM2_SHARED SSKEYCHAIN IMAGE_DECODER
+  HOST_COMPILER "${ITERM_CLANG22_COMPILER}"
+  OUTPUT_DIR "${CMAKE_BINARY_DIR}/xcode-inputs")
+
+# spec: BUILD.md "Updates" -- Check for Updates launches the family updater; its bundle id is derived only by
+#       shipyard's registry, never written here.
+execute_process(COMMAND sh "${MAVERICKS_SHARED_DIR}/scripts/product-name.sh" updater-bundle-id iterm2
+  OUTPUT_VARIABLE ITERM_UPDATER_BUNDLE_ID OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE _iterm_rc)
+if(NOT _iterm_rc EQUAL 0)
+  message(FATAL_ERROR "shipyard's registry does not answer for iterm2 (product-name.sh exited ${_iterm_rc}): install a shipyard that registers it")
+endif()
+execute_process(COMMAND sh "${MAVERICKS_SHARED_DIR}/scripts/product-name.sh" repo iterm2
+  OUTPUT_VARIABLE _iterm_repo OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE _iterm_rc)
+if(NOT _iterm_rc EQUAL 0)
+  message(FATAL_ERROR "shipyard's registry names no repository for iterm2 (product-name.sh exited ${_iterm_rc})")
+endif()
+set(ITERM_RELEASES_URL "https://github.com/Mavergreen/${_iterm_repo}/releases")
+
+mavericks_export_xcode_sources(ITERM_COLORPICKER_SOURCES_FILE
+  PROJECT "${ITERM_SOURCE_DIR}/ColorPicker/ColorPicker.xcodeproj"
+  TARGETS ColorPicker
+  PREFIXES COLORPICKER
+  HOST_COMPILER "${ITERM_CLANG22_COMPILER}"
+  OUTPUT_DIR "${CMAKE_BINARY_DIR}/xcode-inputs")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermColorPicker.cmake")
+iterm_add_colorpicker(SOURCES_FILE "${ITERM_COLORPICKER_SOURCES_FILE}" SOURCE_DIR "${ITERM_SOURCE_DIR}/ColorPicker"
+  SDK "${CMAKE_OSX_SYSROOT}" RECIPES "${ITERM_RECAULK_RECIPES}" METADATA_DIR "${CMAKE_BINARY_DIR}/sdk-metadata")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermTargets.cmake")
+iterm_add_targets(
+  SOURCES_FILE "${ITERM_SOURCES_FILE}"
+  SOURCE_DIR "${ITERM_SOURCE_DIR}"
+  SDK "${CMAKE_OSX_SYSROOT}"
+  RECIPES "${ITERM_RECAULK_RECIPES}"
+  METADATA_DIR "${CMAKE_BINARY_DIR}/sdk-metadata"
+  UPDATER_BUNDLE_ID "${ITERM_UPDATER_BUNDLE_ID}"
+  RELEASES_URL "${ITERM_RELEASES_URL}"
+  PRODUCT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/product")
+iterm_link_colorpicker(iTerm2Shared iTerm2)
+

@@ -1,0 +1,19 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "include": ["/usr/local/mavergreen/shipyard/share/cmake/MavericksShipyard/mavericks-presets.json"],
+  "configurePresets": [
+    { "name": "inputs", "hidden": true,
+      "cacheVariables": {
+        "ITERM_INPUTS_FILE": "$env{MAVERICKS_BUILD_ROOT}/${sourceDirName}-inputs/inputs.cmake"
+      } },
+    { "name": "native", "inherits": ["mavericks-native", "inputs"],
+      "displayName": "native -- iTerm2 on Mavericks 10.9, with the verified installed clang22" },
+    { "name": "cross", "inherits": ["mavericks-cross", "inputs"],
+      "displayName": "cross -- iTerm2 for 10.9 on a modern Mac, with the verified installed clang22-cross" }
+  ],
+  "buildPresets": [
+    { "name": "native", "configurePreset": "native" },
+    { "name": "cross", "configurePreset": "cross" }
+  ]
+}
