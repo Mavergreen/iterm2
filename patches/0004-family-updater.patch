@@ -1,0 +1,216 @@
+Updates: the family updater instead of the embedded Sparkle.
+
+The old Sparkle framework is not bundled (maintainer decision 2026-11-07). This
+removes every use of it: the imports; the restart observer, its flag and the
+sparkleRestarting property it fed (always NO without Sparkle, so the quit path that
+trusted a Sparkle restart is gone); the appcast defaults iTerm2 wrote for Sparkle; and
+Sparkle's version comparator, replaced by iTermFamilyVersionIsNewer
+(product/iTermFamilyVersion.m), which orders versions the same way for the four
+incompatible-software checks. The two Sparkle checkboxes in General preferences are
+hidden. checkForUpdates: launches the family updater, ITERM_UPDATER_BUNDLE_ID (from
+shipyard's product registry), with --user; if it is not installed, or cannot be opened,
+an alert says which and names ITERM_RELEASES_URL.
+
+--- a/sources/iTermApplicationDelegate.h
++++ b/sources/iTermApplicationDelegate.h
+@@ -53,8 +53,6 @@
+ // Returns one of the kMarkAlertAction strings defined above.
+ @property(nonatomic, readonly) NSString *markAlertAction;
+ 
+-// Is Sparkle in the process of restarting us?
+-@property(nonatomic, readonly) BOOL sparkleRestarting;
+ 
+ @property(nonatomic, readonly) BOOL useBackgroundPatternIndicator;
+ @property(nonatomic, readonly) BOOL warnBeforeMultiLinePaste;
+--- a/sources/iTermApplicationDelegate.m
++++ b/sources/iTermApplicationDelegate.m
+@@ -67,8 +67,6 @@
+ #import "PTYTextView.h"
+ #import "PTYWindow.h"
+ #import "QLPreviewPanel+iTerm.h"
+-#import "Sparkle/SUStandardVersionComparator.h"
+-#import "Sparkle/SUUpdater.h"
+ #import "ToastWindowController.h"
+ #import "VT100Terminal.h"
+ 
+@@ -76,6 +74,9 @@
+ #import <objc/runtime.h>
+ 
+ #include "iTermFileDescriptorClient.h"
++
++// Mavericks iTerm2: defined in product/iTermFamilyVersion.m, linked into the app.
++BOOL iTermFamilyVersionIsNewer(NSString *version, NSString *other);
+ #include <sys/stat.h>
+ #include <unistd.h>
+ 
+@@ -152,8 +153,6 @@
+     // NSProcessInfo-provided object to make the system think we're doing something important.
+     id<NSObject> _appNapStoppingActivity;
+ 
+-    BOOL _sparkleRestarting;  // Is Sparkle about to restart the app?
+-
+     int _secureInputCount;
+ }
+ 
+@@ -188,13 +187,6 @@
+ 
+     // Users used to be opted into the beta by default. Make sure the user is cool with that.
+     [self promptAboutRemainingInBetaIfNeeded];
+-
+-    // Set the Appcast URL and when it changes update it.
+-    [[iTermController sharedInstance] refreshSoftwareUpdateUserDefaults];
+-    [iTermPreferences addObserverForKey:kPreferenceKeyCheckForTestReleases
+-                                  block:^(id before, id after) {
+-                                      [[iTermController sharedInstance] refreshSoftwareUpdateUserDefaults];
+-                                  }];
+ }
+ 
+ - (void)promptAboutRemainingInBetaIfNeeded {
+@@ -377,9 +369,8 @@
+ }
+ 
+ - (BOOL)version:(NSString *)version newerThan:(NSString *)otherVersion {
+-    id<SUVersionComparison> comparator = [SUStandardVersionComparator defaultComparator];
+-    NSInteger result = [comparator compareVersion:version toVersion:otherVersion];
+-    return result == NSOrderedDescending;
++    // Mavericks iTerm2: product/iTermFamilyVersion.m orders versions as Sparkle's comparator did.
++    return iTermFamilyVersionIsNewer(version, otherVersion);
+ }
+ 
+ - (void)notifyAboutIncompatibleVersionOf:(NSString *)name url:(NSString *)urlString upgradeAvailable:(BOOL)upgradeAvailable {
+@@ -537,11 +528,6 @@
+                                                            selector:@selector(workspaceSessionDidResignActive:)
+                                                                name:NSWorkspaceSessionDidResignActiveNotification
+                                                              object:nil];
+-    [[NSNotificationCenter defaultCenter] addObserver:self
+-                                             selector:@selector(sparkleWillRestartApp:)
+-                                                 name:SUUpdaterWillRestartNotification
+-                                               object:nil];
+-
+     if ([iTermAdvancedSettingsModel runJobsInServers] &&
+         !self.isApplescriptTestApp) {
+         [PseudoTerminalRestorer setRestorationCompletionBlock:^{
+@@ -558,10 +544,35 @@
+     _workspaceSessionActive = NO;
+ }
+ 
+-- (void)sparkleWillRestartApp:(NSNotification *)notification {
+-    [NSApp invalidateRestorableState];
+-    [[NSApp windows] makeObjectsPerformSelector:@selector(invalidateRestorableState)];
+-    _sparkleRestarting = YES;
++- (IBAction)checkForUpdates:(id)sender {
++    // Mavericks iTerm2: the family updater, not an embedded Sparkle, checks for and installs
++    // updates. --user makes its check user-initiated, so it always shows its window.
++    NSString *bundleId = @ITERM_UPDATER_BUNDLE_ID;
++    NSURL *url = [[NSWorkspace sharedWorkspace] URLForApplicationWithBundleIdentifier:bundleId];
++    NSError *error = nil;
++    if (url &&
++        [[NSWorkspace sharedWorkspace] launchApplicationAtURL:url
++                                                      options:NSWorkspaceLaunchDefault
++                                                configuration:@{ NSWorkspaceLaunchConfigurationArguments: @[ @"--user" ] }
++                                                        error:&error]) {
++        return;
++    }
++    NSAlert *alert = [[[NSAlert alloc] init] autorelease];
++    if (!url) {
++        alert.messageText = @"The updater is not installed";
++        alert.informativeText =
++            [NSString stringWithFormat:@"Mavericks iTerm2 updates itself with its own updater (%@), which "
++                                       @"is not installed. Reinstall Mavericks iTerm2 from %@ to restore it.",
++                                       bundleId, @ITERM_RELEASES_URL];
++    } else {
++        alert.messageText = @"The updater could not be opened";
++        alert.informativeText =
++            [NSString stringWithFormat:@"%@ could not be opened: %@. Reinstall Mavericks iTerm2 from %@ "
++                                       @"to repair it.",
++                                       url.path, error.localizedDescription ?: @"no reason given", @ITERM_RELEASES_URL];
++    }
++    [alert addButtonWithTitle:@"OK"];
++    [alert runModal];
+ }
+ 
+ - (NSApplicationTerminateReply)applicationShouldTerminate:(NSNotification *)theNotification {
+@@ -589,13 +600,6 @@
+         // closing multiple sessions
+         [reason addReason:[iTermPromptOnCloseReason closingMultipleSessionsPreferenceEnabled]];
+     }
+-    if ([iTermAdvancedSettingsModel runJobsInServers] &&
+-        self.sparkleRestarting &&
+-        [iTermAdvancedSettingsModel restoreWindowContents] &&
+-        [[iTermController sharedInstance] willRestoreWindowsAtNextLaunch]) {
+-        // Nothing will be lost so just restart without asking.
+-        [reason addReason:[iTermPromptOnCloseReason noReason]];
+-    }
+ 
+     if (reason.hasReason) {
+         DLog(@"Showing quit alert");
+--- a/sources/iTermController.h
++++ b/sources/iTermController.h
+@@ -131,10 +131,6 @@
+ // If other iTerm windows cover more than ~40% of |terminal| then it's obscured.
+ - (BOOL)terminalIsObscured:(id<iTermWindowController>)terminal;
+ 
+-// Set Software Update (Sparkle) user defaults keys to reflect settings in
+-// iTerm2's user defaults.
+-- (void)refreshSoftwareUpdateUserDefaults;
+-
+ - (void)addRestorableSession:(iTermRestorableSession *)session;
+ - (void)removeSessionFromRestorableSessions:(PTYSession *)session;
+ - (iTermRestorableSession *)popRestorableSession;
+--- a/sources/iTermController.m
++++ b/sources/iTermController.m
+@@ -151,9 +151,7 @@
+     const BOOL sessionsWillRestore = ([iTermAdvancedSettingsModel runJobsInServers] &&
+                                       [iTermAdvancedSettingsModel restoreWindowContents] &&
+                                       self.willRestoreWindowsAtNextLaunch);
+-    iTermApplicationDelegate *itad = iTermApplication.sharedApplication.delegate;
+-    return (sessionsWillRestore &&
+-            (itad.sparkleRestarting || ![iTermAdvancedSettingsModel killJobsInServersOnQuit]));
++    return (sessionsWillRestore && ![iTermAdvancedSettingsModel killJobsInServersOnQuit]);
+ }
+ 
+ - (void)dealloc {
+@@ -1249,24 +1247,6 @@
+     }
+ }
+ 
+-- (void)refreshSoftwareUpdateUserDefaults {
+-    BOOL checkForTestReleases = [iTermPreferences boolForKey:kPreferenceKeyCheckForTestReleases];
+-    NSString *appCast = checkForTestReleases ?
+-        [[NSBundle mainBundle] objectForInfoDictionaryKey:@"SUFeedURLForTesting"] :
+-        [[NSBundle mainBundle] objectForInfoDictionaryKey:@"SUFeedURLForFinal"];
+-    NSURL *url = [NSURL URLWithString:appCast];
+-    NSNumber *shard = @([iTermController shard]);
+-    url = [url URLByAppendingQueryParameter:[NSString stringWithFormat:@"shard=%@", shard]];
+-    [[NSUserDefaults standardUserDefaults] setObject:url.absoluteString forKey:@"SUFeedURL"];
+-    // Allow Sparkle to update from a zip file containing an "iTerm" directory,
+-    // even though our bundle name is now "iTerm2". I had to add this feature
+-    // to my fork of Sparkle so I could change the app's name without breaking
+-    // auto-update. https://github.com/gnachman/Sparkle, commit
+-    // bd6a8df6e63b843f1f8aff79f40bd70907761a99.
+-    [[NSUserDefaults standardUserDefaults] setObject:@"iTerm"
+-                                              forKey:@"SUFeedAlternateAppNameKey"];
+-}
+-
+ - (BOOL)selectionRespectsSoftBoundaries {
+     return [[NSUserDefaults standardUserDefaults] boolForKey:kSelectionRespectsSoftBoundariesKey];
+ }
+--- a/sources/GeneralPreferencesViewController.m
++++ b/sources/GeneralPreferencesViewController.m
+@@ -187,13 +187,9 @@
+                     key:kPreferenceKeyAddBonjourHostsToProfiles
+                             type:kPreferenceInfoTypeCheckbox];
+ 
+-    [self defineControl:_checkUpdate
+-                    key:kPreferenceKeyCheckForUpdatesAutomatically
+-                   type:kPreferenceInfoTypeCheckbox];
+-
+-    [self defineControl:_checkTestRelease
+-                    key:kPreferenceKeyCheckForTestReleases
+-                   type:kPreferenceInfoTypeCheckbox];
++    // Mavericks iTerm2: the family updater owns its schedule; these Sparkle settings do nothing here.
++    [_checkUpdate setHidden:YES];
++    [_checkTestRelease setHidden:YES];
+ 
+     // ---------------------------------------------------------------------------------------------
+     info = [self defineControl:_loadPrefsFromCustomFolder

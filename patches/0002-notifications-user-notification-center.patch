@@ -1,0 +1,111 @@
+Notifications: NSUserNotificationCenter instead of Growl.
+
+Growl is not bundled: it is defunct, and the source and license of the prebuilt
+framework are unidentified (maintainer decision 2026-11-07). iTermGrowlDelegate keeps
+its class and selector names, so every caller, the "BM Growl" profile key and saved
+Growl triggers are unchanged. It now delivers NSUserNotifications (10.8+) carrying the
+same window/tab/view context; a clicked notification is removed from Notification
+Center and reveals that session, as before. iTermController creates the delegate at
+launch, so clicks on earlier notifications are handled. sticky was Growl-only and is
+ignored.
+
+--- a/sources/iTermGrowlDelegate.h
++++ b/sources/iTermGrowlDelegate.h
+@@ -52,11 +52,10 @@
+  */
+ 
+ #import <Cocoa/Cocoa.h>
+-#import <Growl/Growl.h>
+ 
+-@interface iTermGrowlDelegate : NSObject <
+-  GrowlApplicationBridgeDelegate,
+-  NSUserNotificationCenterDelegate>
++// Mavericks iTerm2: notifications go through NSUserNotificationCenter (10.8+); Growl is not
++// bundled. The class and selector names stay so callers and saved profiles are unchanged.
++@interface iTermGrowlDelegate : NSObject <NSUserNotificationCenterDelegate>
+ 
+ + (instancetype)sharedInstance;
+ 
+--- a/sources/iTermGrowlDelegate.m
++++ b/sources/iTermGrowlDelegate.m
+@@ -33,9 +33,6 @@
+ #import "PTYSession.h"
+ #import "PTYTab.h"
+ 
+-#import <Growl/Growl.h>
+-
+-static NSString *const kGrowlAppName = @"iTerm";
+ static NSString *const kDefaultNotification = @"Miscellaneous";
+ 
+ @implementation iTermGrowlDelegate
+@@ -52,18 +49,7 @@
+ - (instancetype)init {
+     self = [super init];
+     if (self) {
+-        NSBundle *myBundle = [NSBundle bundleForClass:[iTermGrowlDelegate class]];
+-        NSString *growlPath =
+-            [[myBundle privateFrameworksPath] stringByAppendingPathComponent:@"Growl.framework"];
+-        NSBundle *growlBundle = [NSBundle bundleWithPath:growlPath];
+-        if (growlBundle && [growlBundle load]) {
+-            // Register ourselves as a Growl delegate
+-            [GrowlApplicationBridge setGrowlDelegate:self];
+-        } else {
+-            NSLog(@"Could not load Growl.framework");
+-        }
+-
+-        [self registrationDictionaryForGrowl];
++        [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:self];
+     }
+     return self;
+ }
+@@ -119,13 +105,12 @@
+                      @"view": @(viewIndex) };
+     }
+ 
+-    [GrowlApplicationBridge notifyWithTitle:title
+-                                description:description
+-                           notificationName:notification
+-                                   iconData:nil
+-                                   priority:0
+-                                   isSticky:sticky
+-                               clickContext:context];
++    // sticky is a Growl-only feature (see the header); Notification Center has no equivalent.
++    NSUserNotification *userNotification = [[[NSUserNotification alloc] init] autorelease];
++    userNotification.title = title;
++    userNotification.informativeText = description;
++    userNotification.userInfo = context;
++    [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:userNotification];
+     return YES;
+ }
+ 
+@@ -150,21 +135,17 @@
+     [theSession reveal];
+ }
+ 
+-- (NSDictionary *)registrationDictionaryForGrowl {
+-    NSArray *notifications = @[ @"Bells",
+-                                @"Broken Pipes",
+-                                @"Miscellaneous",
+-                                @"Idle",
+-                                @"New Output",
+-                                @"Customized Message",
+-                                @"Mark Set" ];
+-    return @{ GROWL_APP_NAME: kGrowlAppName,
+-              GROWL_NOTIFICATIONS_ALL: notifications,
+-              GROWL_NOTIFICATIONS_DEFAULT: notifications };
++- (BOOL)userNotificationCenter:(NSUserNotificationCenter *)center
++     shouldPresentNotification:(NSUserNotification *)notification {
++    return YES;
+ }
+ 
+-- (void)growlIsReady {
+-    NSLog(@"Growl is ready");
++- (void)userNotificationCenter:(NSUserNotificationCenter *)center
++       didActivateNotification:(NSUserNotification *)notification {
++    [center removeDeliveredNotification:notification];
++    if (notification.userInfo) {
++        [self growlNotificationWasClicked:notification.userInfo];
++    }
+ }
+ 
+ @end
