@@ -33,7 +33,8 @@ function(iterm_add_bundle)
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${app}"
     COMMAND sh "${repo}/build/assemble-bundle.sh" "${app}" "${A_SOURCE_DIR}" "${compiled}"
             "$<TARGET_FILE:iTerm2>" "$<TARGET_FILE:image_decoder>" "$<TARGET_BUNDLE_DIR:ColorPicker>" "${A_VERSION}"
-    DEPENDS iTerm2 image_decoder ColorPicker
+            "$<TARGET_FILE:restart-for-update>"
+    DEPENDS iTerm2 image_decoder ColorPicker restart-for-update
     COMMENT "Assembling and checking iTerm2.app"
     VERBATIM)
 endfunction()

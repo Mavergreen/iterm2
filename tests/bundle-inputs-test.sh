@@ -46,6 +46,7 @@ done
 printf 'int main(void) { return 0; }\n' > "$T/main.c"
 "$CLANG22" -o "$T/iTerm2" "$T/main.c"
 "$CLANG22" -o "$T/image_decoder" "$T/main.c"
+"$CLANG22" -o "$T/restart-for-update" "$T/main.c"
 mkdir -p "$T/fw/ColorPicker.framework/Versions/A/Resources"
 printf 'int cpk(void) { return 1; }\n' > "$T/cpk.c"
 "$CLANG22" -dynamiclib -install_name @rpath/ColorPicker.framework/Versions/A/ColorPicker \
@@ -55,7 +56,7 @@ printf 'int cpk(void) { return 1; }\n' > "$T/cpk.c"
 
 assemble() { # OUT -- assemble a bundle from the inputs above
   sh "$REPO_ROOT/build/assemble-bundle.sh" "$1" "$T/src" "$T/compiled" "$T/iTerm2" "$T/image_decoder" \
-    "$T/fw/ColorPicker.framework" 3.0.15-mavericks.1 >"$T/log" 2>&1
+    "$T/fw/ColorPicker.framework" 3.0.15-mavericks.1 "$T/restart-for-update" >"$T/log" 2>&1
 }
 check() { sh "$REPO_ROOT/build/check-bundle.sh" "$1" "$T/src" >"$T/log" 2>&1; }
 logged() { tr '\n' ' ' < "$T/log" | tr -s ' ' | grep -q -- "$1"; }
@@ -70,7 +71,8 @@ if assemble "$T/good/iTerm2.app"; then
   [ -f "$A/Resources/image_decoder.sb" ] || fail "no image_decoder.sb"
   [ ! -e "$A/MacOS/image_decoder" ] || fail "image_decoder is in MacOS"
   [ "$(ls "$A/Frameworks")" = ColorPicker.framework ] || fail "Frameworks is not exactly ColorPicker.framework"
-  [ "$(ls "$A/MacOS")" = iTerm2 ] || fail "MacOS is not exactly iTerm2"
+  [ "$(ls "$A/MacOS" | tr '\n' ' ')" = 'iTerm2 restart-for-update ' ] || fail "MacOS is not exactly iTerm2 and restart-for-update"
+  [ "$(ls -l "$A/MacOS/restart-for-update" | cut -c1-10)" = -rwxr-xr-x ] || fail "restart-for-update is not 0755"
   p() { plutil -extract "$1" xml1 -o - "$A/Info.plist" 2>/dev/null | sed -n 's:.*<string>\(.*\)</string>.*:\1:p'; }
   [ "$(p CFBundleIdentifier)" = dev.mavergreen.iterm2.app ] || fail "CFBundleIdentifier"
   [ "$(p CFBundleDisplayName)" = "Mavericks iTerm2" ] || fail "CFBundleDisplayName"
@@ -100,6 +102,7 @@ if assemble "$T/good/iTerm2.app"; then
   bad missing-model 'rm "$B/Resources/Model.momd/Model.mom"'
   bad missing-model-version 'rm "$B/Resources/Model.momd/VersionInfo.plist"'
   bad decoder-mode 'chmod 644 "$B/Resources/image_decoder"'
+  bad missing-restart-helper 'rm "$B/MacOS/restart-for-update"'
   bad decoder-in-macos 'mv "$B/Resources/image_decoder" "$B/MacOS/image_decoder"'
   bad no-sandbox 'rm "$B/Resources/image_decoder.sb"'
   bad no-icon 'rm "$B/Resources/iTerm2.icns"'
@@ -136,7 +139,7 @@ grep -q '"unproven"' "$R/source-contract.json" || fail "source-contract.json doe
 cp -R "$T/src" "$T/src2"
 mkdir -p "$T/src2/Media.xcassets/Extra.imageset"; echo '{}' > "$T/src2/Media.xcassets/Extra.imageset/Contents.json"
 if sh "$REPO_ROOT/build/assemble-bundle.sh" "$T/catalog/iTerm2.app" "$T/src2" "$T/compiled" "$T/iTerm2" \
-     "$T/image_decoder" "$T/fw/ColorPicker.framework" 3.0.15-mavericks.1 >"$T/log" 2>&1; then
+     "$T/image_decoder" "$T/fw/ColorPicker.framework" 3.0.15-mavericks.1 "$T/restart-for-update" >"$T/log" 2>&1; then
   fail "an asset catalog with Extra.imageset was accepted"
 fi
 logged 'Extra.imageset' || fail "the catalog refusal does not name Extra.imageset"

@@ -7,7 +7,8 @@
 #          source SOURCE_DIR; image_decoder in Resources, mode 0755, with image_decoder.sb; iTerm2.icns;
 #          Info.plist with the Mavergreen identity, the 10.9 floor, a -mavericks.N version and its
 #          dotted comparison key, upstream's nib/class/scripting fields, and no SU* key; PkgInfo; no
-#          executable or Mach-O but MacOS/iTerm2, Resources/image_decoder and the rebuilt ColorPicker
+#          executable or Mach-O but MacOS/iTerm2, MacOS/restart-for-update, Resources/image_decoder and the
+#          rebuilt ColorPicker
 #          (never the prebuilt one in SOURCE_DIR); no Growl, NMSSH or Sparkle file or load command.
 #          OTOOL and NM name the readers (default: clang22's llvm-otool and llvm-nm); a read that fails
 #          refuses the bundle, and so does an undefined Growl, NMSSH, libssh2 or SU* class symbol.
@@ -35,7 +36,8 @@ for t in OTOOL:llvm-otool NM:llvm-nm; do
   eval "$var=\${cur:-/nonexistent/${t#*:}}"
 done
 
-[ "$(ls "$C/MacOS" 2>/dev/null)" = iTerm2 ] || bad "Contents/MacOS is not exactly iTerm2: $(ls "$C/MacOS" 2>/dev/null | tr '\n' ' ')"
+[ "$(ls "$C/MacOS" 2>/dev/null | tr '\n' ' ')" = 'iTerm2 restart-for-update ' ] \
+  || bad "Contents/MacOS is not exactly iTerm2 and restart-for-update: $(ls "$C/MacOS" 2>/dev/null | tr '\n' ' ')"
 [ "$(ls "$C/Frameworks" 2>/dev/null)" = ColorPicker.framework ] \
   || bad "Contents/Frameworks is not exactly ColorPicker.framework: $(ls "$C/Frameworks" 2>/dev/null | tr '\n' ' ')"
 cp_bin="$C/Frameworks/ColorPicker.framework/Versions/A/ColorPicker"
@@ -84,8 +86,9 @@ macho=$(cd "$APP" && find . -type f | while IFS= read -r f; do
 done | sort)
 allowed='./Contents/Frameworks/ColorPicker.framework/Versions/A/ColorPicker
 ./Contents/MacOS/iTerm2
+./Contents/MacOS/restart-for-update
 ./Contents/Resources/image_decoder'
-[ "$macho" = "$allowed" ] || bad "executables and Mach-O files are not exactly the three allowed: $(echo $macho)"
+[ "$macho" = "$allowed" ] || bad "executables and Mach-O files are not exactly the four allowed: $(echo $macho)"
 for f in $macho; do
   case "$f" in ./*) ;; *) continue ;; esac
   if ! "$OTOOL" -L "$APP/$f" > "$APP.otool.$$" 2>/dev/null || ! grep -qF "$APP/$f" "$APP.otool.$$"; then
