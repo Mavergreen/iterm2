@@ -14,6 +14,7 @@ shipyard-cmake --build --preset native
 ```
 
 SECURITY.md lists the iTerm2 security advisories and where each stands.
+SMOKE.md is the checklist for running it beside upstream iTerm2 for the first time.
 
 `build/prepare-inputs.sh` fetches and verifies the pinned source and resources, applies `patches/`, and refuses any tool that is not installed at its pin. INGREDIENTS.md lists the inputs; PORT.md the carried changes.
 
