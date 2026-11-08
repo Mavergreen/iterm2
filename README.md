@@ -13,6 +13,8 @@ shipyard-cmake --preset native        # --preset cross on a modern Mac
 shipyard-cmake --build --preset native
 ```
 
+SECURITY.md lists the iTerm2 security advisories and where each stands.
+
 `build/prepare-inputs.sh` fetches and verifies the pinned source and resources, applies `patches/`, and refuses any tool that is not installed at its pin. INGREDIENTS.md lists the inputs; PORT.md the carried changes.
 
 ## License

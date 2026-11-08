@@ -49,3 +49,7 @@ The 29 nibs and the compiled Core Data model come from the release ZIP (`resourc
 ## Build evidence
 
 `build/record-build.sh BUILD_DIR EVIDENCE_DIR` builds the app, keeps the whole log and the real exit status, and writes `findings.json`: PASS only for a complete build whose output exists, passes shipyard's compat guard and leaves the checkout unchanged; BLOCKED otherwise. It records the host, mode, compiler and its version, shipyard's version, the declared inputs and the output's inventory. A leg that was not run is recorded with `--absent` as ABSENT, with its reason. Runtime behavior is never measured here: it stays UNMEASURED until a separately authorized acceptance run.
+
+## Security advisories
+
+`SECURITY.md` and `security/advisories.tsv` record every published iTerm2 advisory against the pinned source: fixed by a patch, guarded by a check 3.0.15 already has, absent because 3.0.15 lacks the feature, or pending. `tests/advisories-test.sh` prepares the source and fails, naming the advisory, when an absent feature appears, a guard disappears or a fix's patch is no longer applied, so moving to a newer upstream cannot bring an advisory back unnoticed.
