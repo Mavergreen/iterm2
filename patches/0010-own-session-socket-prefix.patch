@@ -1,0 +1,21 @@
+Session servers: a socket prefix of this app's own.
+
+Each session's server listens on /var/tmp/<prefix><pid>. At launch, the
+app adopts every orphaned server whose socket has its prefix: that is
+how sessions survive a crash. With upstream's prefix ("iTerm2.socket."),
+this app would adopt the sessions upstream iTerm2 left behind, and
+upstream would adopt this app's. The prefix is now
+"Mavericks-iTerm2.socket.". The server and the adopter share the one
+constant.
+
+--- a/sources/iTermFileDescriptorSocketPath.c
++++ b/sources/iTermFileDescriptorSocketPath.c
+@@ -11,7 +11,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-const char *iTermFileDescriptorSocketNamePrefix = "iTerm2.socket.";
++const char *iTermFileDescriptorSocketNamePrefix = "Mavericks-iTerm2.socket.";
+ 
+ 
+ // From http://apple.stackexchange.com/questions/22694/private-tmp-vs-private-var-tmp-vs-tmpdir

@@ -44,6 +44,11 @@ grep -q 'objectForKey:@"NSApplicationBundleIdentifier"\] isEqualToString:\[\[NSB
 grep -q 'handlerId isEqualToString:\[\[NSBundle mainBundle\] bundleIdentifier\]' "$S/iTermLaunchServices.m" \
   || fail "identity: no upstream id stands for this app (the URL handler's own-app check)"
 
+# spec: BUILD.md "Identity and coexistence" -- session servers listen on /var/tmp/<prefix><pid>, and at launch
+#       the app adopts every orphan with its prefix; upstream's prefix would let either app adopt the other's
+grep -q '^const char \*iTermFileDescriptorSocketNamePrefix = "Mavericks-iTerm2\.socket\.";$' "$S/iTermFileDescriptorSocketPath.c" \
+  || fail "identity: session server sockets have their own prefix"
+
 # spec: Review Focus 4 -- with both directories the same, legacy notes exist only where the new ones are,
 #       so the migration must keep moving only when the new file is absent
 grep -q '\[fileManager fileExistsAtPath:\[self legacyFilename\]\] && !\[fileManager fileExistsAtPath:\[self filename\]\]' "$S/ToolNotes.m" \
