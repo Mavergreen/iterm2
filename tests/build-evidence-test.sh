@@ -110,5 +110,46 @@ grep -q '"Contents/MacOS/iTerm2"' "$T/empty-evidence/findings.json" && fail "emp
 [ "$rc" -ne 0 ] || fail "empty: the recorder exited 0 with no iTerm2.app"
 [ "$(field empty build_status)" = BLOCKED ] || fail "empty: build_status is not BLOCKED"
 
+# spec: BUILD.md "Build evidence" -- a native build runs its driver tests (CTest label "driver") after the
+#       compat guard: a failing driver BLOCKs; a cross build records them UNMEASURED, with the reason
+printf 'int main(void) { return 1; }\n' > "$T/bad.c"
+drivers() { # NAME DRIVER-SOURCE [EXTRA-CMAKE]
+  project "$1" "${3:-}
+enable_testing()
+add_executable(iTerm2 \"$T/ok.c\")
+add_executable(drv EXCLUDE_FROM_ALL \"$2\")
+add_custom_target(drivers DEPENDS drv)
+add_test(NAME driver.$1 COMMAND drv)
+set_tests_properties(driver.$1 PROPERTIES LABELS driver)
+add_custom_target(iTerm2-app ALL
+  COMMAND \"\${CMAKE_COMMAND}\" -E make_directory \"\${CMAKE_BINARY_DIR}/iTerm2.app/Contents/MacOS\"
+  COMMAND \"\${CMAKE_COMMAND}\" -E copy \"\$<TARGET_FILE:iTerm2>\" \"\${CMAKE_BINARY_DIR}/iTerm2.app/Contents/MacOS/iTerm2\"
+  DEPENDS iTerm2)"
+  record "$1"
+}
+drivers drvpass "$T/ok.c"
+[ "$rc" -eq 0 ] && [ "$(field drvpass build_status)" = PASS ] && [ "$(field drvpass drivers)" = PASS ] \
+  || { cat "$T/drvpass.out" >&2; fail "native build records drivers: passing drivers are not PASS"; }
+drivers drvfail "$T/bad.c"
+[ "$rc" -ne 0 ] && [ "$(field drvfail build_status)" = BLOCKED ] && [ "$(field drvfail drivers)" = FAIL ] \
+  && grep -q 'drivers failed' "$T/drvfail-evidence/findings.json" && grep -q 'driver.drvfail' "$T/drvfail-evidence/build.log" \
+  || fail "native build records drivers: a failing driver did not BLOCK, naming it"
+drivers drvcross "$T/bad.c" 'set(MAVERICKS_EXPECTED_MODE cross CACHE STRING "")'
+[ "$rc" -eq 0 ] && [ "$(field drvcross build_status)" = PASS ] && [ "$(field drvcross drivers)" = UNMEASURED ] \
+  && grep -q '"drivers_reason": "cross build: x86_64 10.9 drivers do not run here"' "$T/drvcross-evidence/findings.json" \
+  || fail "cross build records drivers UNMEASURED"
+[ "$(field ok drivers)" = NONE ] || fail "a build with no driver tests does not record drivers NONE"
+project drvbroken "enable_testing()
+add_executable(iTerm2 \"$T/broken.c\")
+add_executable(drv EXCLUDE_FROM_ALL \"$T/ok.c\")
+add_custom_target(drivers DEPENDS drv)
+add_test(NAME driver.drvbroken COMMAND drv)
+set_tests_properties(driver.drvbroken PROPERTIES LABELS driver)
+add_custom_target(iTerm2-app ALL DEPENDS iTerm2)"
+record drvbroken
+[ "$rc" -ne 0 ] && [ "$(field drvbroken build_status)" = BLOCKED ] && [ "$(field drvbroken drivers)" = UNMEASURED ] \
+  && grep -q '"drivers_reason": "the build did not pass, so its drivers did not run"' "$T/drvbroken-evidence/findings.json" \
+  || fail "a build that did not pass records its drivers UNMEASURED, not NONE"
+
 [ "$fails" -eq 0 ] || { echo "build-evidence-test: $fails failure(s)" >&2; exit 1; }
 echo "build-evidence-test: OK"

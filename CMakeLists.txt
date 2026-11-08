@@ -60,6 +60,14 @@ iterm_add_targets(
   PRODUCT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/product")
 iterm_link_colorpicker(iTerm2Shared iTerm2)
 
+# spec: BUILD.md "Build evidence" -- driver tests check behavior against the built sources; record-build.sh runs
+#       them on native builds
+option(ITERM_DRIVERS "build the driver tests (target drivers, CTest label driver)" ON)
+if(ITERM_DRIVERS)
+  enable_testing()
+  add_subdirectory(tests/drivers)
+endif()
+
 # spec: BUILD.md "Resources and the bundle" -- the first historical version is
 #       <upstream>-mavericks.N, resolved from UPSTREAM_VERSION and the shipped tags.
 include(MavericksVersion)

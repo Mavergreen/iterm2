@@ -107,6 +107,23 @@ if [ -e "$out" ]; then
 fi
 [ "$compat" = PASS ] || [ "$status" = BLOCKED ] || blocked "compat is $compat"
 [ "$before" = "$after" ] || blocked "the build changed the checkout"
+# spec: BUILD.md "Build evidence" -- driver tests (CTest label "driver") run after a native build that
+#       passed so far; a cross build's x86_64 10.9 drivers cannot run on its host, so it records them
+#       UNMEASURED, never PASS or FAIL; so does a build that did not pass, as its drivers never ran
+drivers=NONE; drivers_reason=""
+CTEST=$(cache CMAKE_CTEST_COMMAND)
+if [ -n "$CTEST" ] && "$CTEST" --test-dir "$B" -N -L driver 2>/dev/null | grep -q 'Test *#'; then
+  if [ "$status" != PASS ]; then
+    drivers=UNMEASURED; drivers_reason="the build did not pass, so its drivers did not run"
+  elif [ "$(cache MAVERICKS_EXPECTED_MODE)" = cross ]; then
+    drivers=UNMEASURED; drivers_reason="cross build: x86_64 10.9 drivers do not run here"
+  elif "$CMAKE" --build "$B" --target drivers >>"$E/build.log" 2>&1 \
+       && "$CTEST" --test-dir "$B" -L driver --output-on-failure >>"$E/build.log" 2>&1; then
+    drivers=PASS
+  else
+    drivers=FAIL; blocked "drivers failed (build.log)"
+  fi
+fi
 unreleased=$(cache ITERM_UNRELEASED_RECIPES)
 [ "$(cache ITERM_UNRELEASED_INPUTS)" != ON ] || blocked "unreleased recipes: ${unreleased:-unnamed}"
 
@@ -132,6 +149,8 @@ cat > "$E/findings.json" <<EOF
   "checkout_before": "$before",
   "checkout_after": "$after",
   "compat": "$compat",
+  "drivers": "$drivers",
+  "drivers_reason": "$(j "$drivers_reason")",
   "unreleased_recipes": "$(j "${unreleased:-}")",
   "runtime": "UNMEASURED",
   "inputs": $inputs,
