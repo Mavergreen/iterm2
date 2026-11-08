@@ -43,6 +43,19 @@
       "depNameTemplate": "Mavergreen/recaulk",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "regex:^(?<major>\\d{8})\\.(?<minor>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Longboat, which CI installs to get the 10.9 SDK the clang22 pkgs require (components/longboat/version, CI-only). Longboat tags YYYYMMDD.N; the versioning reads N as the minor, so two releases on one day order.",
+      "managerFilePatterns": [
+        "/^components/longboat/version$/"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\S+)\\s*$"
+      ],
+      "depNameTemplate": "Mavergreen/longboat",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^(?<major>\\d{8})\\.(?<minor>\\d+)$"
     }
   ],
   "packageRules": [
@@ -52,6 +65,15 @@
       ],
       "allowedVersions": "<3.1",
       "description": "Capped at 3.0.x: 3.1.0 requires OS X 10.10 (iterm2.com/downloads), and a build passing is not evidence of everyday use on 10.9. The cap ends when a newer upstream passes the Mavericks acceptance suite (spec: 2026-10-31-iterm2-design.md, advancement)."
+    },
+    {
+      "description": "Renovate moves components/clang22/version but cannot write the Linux archive's digest beside it, which fetch_clang22.sh needs on Linux.",
+      "matchDepNames": [
+        "Mavergreen/clang-22"
+      ],
+      "prBodyNotes": [
+        "Before this can merge, replace components/clang22/linux-sha256 with the `clang22-<version>-linux-x86_64.tar.gz` line of the new release's SHA256SUMS: `gh release download <version> -R Mavergreen/clang-22 -p SHA256SUMS -O - | grep linux-x86_64.tar.gz > components/clang22/linux-sha256`."
+      ]
     }
   ]
 }

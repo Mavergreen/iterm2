@@ -4,3 +4,4 @@ CMakeUserPresets.json
 ._*
 .DS_Store
 /VERSION
+.idea/
