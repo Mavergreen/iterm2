@@ -1,0 +1,1 @@
+Starting tmux integration first cancels anything typed at the prompt (CVE-2023-46300).

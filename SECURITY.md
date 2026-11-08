@@ -29,4 +29,4 @@ Each marker's `security/fixtures/<id>.txt` is an excerpt of what the feature loo
 
 ## Reporting a problem
 
-This product has no public repository yet. Until it does, report a security problem to the maintainer directly, not in a public place. Problems in iTerm2 itself belong upstream at https://iterm2.com.
+Report a security problem in this build privately, with GitHub's "Report a vulnerability" on [Mavergreen/iterm2](https://github.com/Mavergreen/iterm2/security), not in a public issue. Problems in iTerm2 itself belong upstream at https://iterm2.com.
