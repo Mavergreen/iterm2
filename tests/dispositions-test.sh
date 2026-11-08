@@ -3,7 +3,7 @@
 # spec: BUILD.md "Dependency dispositions" -- patches 0002-0004 remove every Growl, NMSSH and old-Sparkle reference from the
 #       pinned source, each touching only the files its contract lists, while the callers and the
 #       stored names (GrowlTrigger, PTYSession, the "BM Growl" key) stay byte-identical; the patch set
-#       is exactly 0001-0011; the updater bundle id is never a literal; the nib shim stands alone.
+#       is exactly 0001-0012; the updater bundle id is never a literal; the nib shim stands alone.
 set -eu
 # platform: modern macOS's en_US.UTF-8 sort ignores case and 10.9's sorts by byte; the file lists compare sorted
 export LC_ALL=C
@@ -29,8 +29,9 @@ expect='0001-image-decoder-arc-bridges.patch
 0008-tmux-no-server-values-in-commands.patch
 0009-no-dns-lookup-on-hover.patch
 0010-own-session-socket-prefix.patch
-0011-image-decoder-real-path.patch'
-[ "$(cd "$REPO_ROOT/patches" && ls *.patch)" = "$expect" ] || fail "the patch set is not exactly 0001-0011"
+0011-image-decoder-real-path.patch
+0012-url-links-plain-names-only.patch'
+[ "$(cd "$REPO_ROOT/patches" && ls *.patch)" = "$expect" ] || fail "the patch set is not exactly 0001-0012"
 
 touches() { # PATCH -- the files a patch writes, sorted, one per line
   sed -n 's|^+++ b/||p' "$REPO_ROOT/patches/$1" | sort | tr '\n' ' '
@@ -54,6 +55,7 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
   || fail "0009 touches other files"
 [ "$(touches 0010-own-session-socket-prefix.patch)" = 'sources/iTermFileDescriptorSocketPath.c ' ] || fail "0010 touches other files"
 [ "$(touches 0011-image-decoder-real-path.patch)" = 'sources/iTermImageDecoderDriver.m ' ] || fail "0011 touches other files"
+[ "$(touches 0012-url-links-plain-names-only.patch)" = 'sources/PseudoTerminal.m sources/iTermController.m ' ] || fail "0012 touches other files"
 
 if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/log" 2>&1; then
   left=$(grep -rIlE 'Growl/Growl\.h|GrowlApplicationBridge|NMSSH/|NMSSH[A-Z]|libssh2[_.]|Sparkle/|SUUpdaterWillRestartNotification|SUFeedURL([^A-Za-z]|$)|refreshSoftwareUpdateUserDefaults' \
@@ -95,7 +97,7 @@ if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/lo
     && grep -q 'didFinishTransmissionWithError:error' "$T/src/sources/SCPFile.m" \
     || fail "an scp transfer does not end in a reported error"
 else
-  cat "$T/log" >&2; fail "patches 0001-0011 do not apply to the pinned source without fuzz"
+  cat "$T/log" >&2; fail "patches 0001-0012 do not apply to the pinned source without fuzz"
 fi
 
 for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-cross/bin/clang; do

@@ -5,6 +5,7 @@ iterm_add_driver(smoke smoke-driver.m fake-tmux.m)
 iterm_add_driver(tmux-control-c tmux-control-c-driver.m fake-tmux.m)
 iterm_add_driver(tmux-injection tmux-injection-driver.m fake-tmux.m)
 iterm_add_driver(support-directory support-directory-driver.m)
+iterm_add_driver(url-command url-command-driver.m)
 # spec: SMOKE.md check 5 -- a bare executable's main bundle is its own directory, so image_decoder and its
 #       sandbox profile go beside the driver, as they sit in the app's Resources
 iterm_add_driver(image-decoder image-decoder-driver.m)

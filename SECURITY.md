@@ -24,8 +24,8 @@ Each marker's `security/fixtures/<id>.txt` is an excerpt of what the feature loo
 | CVE-2024-38396 | 3.5.2 | title reporting combined with tmux integration | guarded: as CVE-2024-38395 |
 | CVE-2025-22275 | 3.5.11 | SSH integration logs session input and output on the remote host | absent: 3.0.15 has no SSH integration |
 | CVE-2019-19022 | after 3.3.6 | search history is saved in the preferences file, which people publish with their dotfiles | absent: 3.0.15 keeps no search history (only the case and regex settings; the search string goes to the system Find pasteboard) |
-| CVE-2026-41253 | after 3.6.9 | not yet traced to 3.0.15's code | pending: resolved before the first release |
-| ITERM2-URL-SCHEME | — | `ssh:`, `telnet:` and `x-man-page:` links become a session's command (only through a profile configured as their handler) | pending: resolved before the first release |
+| CVE-2026-41253 | 3.6.10 | SSH integration accepts its conductor protocol from any terminal output, so printing a file can run code | absent: 3.0.15 has no SSH integration |
+| ITERM2-URL-SCHEME | after 3.0.15 | `ssh:` and `telnet:` links put their user and host into the command unchecked, so a link can pass `ssh` an option that runs code | fixed: `patches/0012` refuses a user or host that is not a plain name, as upstream's `168d0eee0f` and `ad73877882` do, both where it builds the `ssh`/`telnet` command and where a profile's custom command takes `$$HOST$$` and `$$USER$$`; the link's other parts are shell-escaped there |
 
 ## Reporting a problem
 
