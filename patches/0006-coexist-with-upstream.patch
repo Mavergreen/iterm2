@@ -1,0 +1,87 @@
+Coexist with upstream iTerm2: own support directory, own bundle id.
+
+This app runs beside the maintainer's upstream iTerm2.
+
+Support directory. Upstream's applicationSupportDirectory appended the
+executable name, which is "iTerm2" in both apps.
+legacyApplicationSupportDirectory appended the literal "iTerm", which
+holds Scripts/AutoLaunch.scpt, run at every launch. A script written for
+upstream could then drive upstream from this app. Both methods now
+append CFBundleName ("Mavericks iTerm2"), the directory shell and
+pasteboard history already use. ToolNotes moves legacy notes only when
+the new file is absent, so with one directory nothing moves. With no
+CFBundleName (a bare executable, such as a driver test) there is no
+support directory: the path component would be nil, and files would
+land loose in Application Support itself.
+
+Bundle id. Two checks named upstream's bundle id as "this app": the
+hotkey window's previously-active-app check and the URL handler's
+profile lookup. They now compare against this app's own bundle id. iTerm
+0.x's id is dropped with them: a URL handled by another app is not this
+app's to take.
+
+--- a/sources/NSFileManager+iTerm.m
++++ b/sources/NSFileManager+iTerm.m
+@@ -103,12 +103,17 @@
+ // exist).
+ //
+ - (NSString *)applicationSupportDirectory {
+-    NSString *executableName =
+-        [[[NSBundle mainBundle] infoDictionary] objectForKey:(id)kCFBundleExecutableKey];
++    NSString *appName =
++        [[[NSBundle mainBundle] infoDictionary] objectForKey:(id)kCFBundleNameKey];
++    if (appName.length == 0) {
++        // Without a name of its own there is no directory of its own: never Application Support itself.
++        NSLog(@"No CFBundleName, so no application support directory");
++        return nil;
++    }
+     NSError *error;
+     NSString *result = [self findOrCreateDirectory:NSApplicationSupportDirectory
+                                           inDomain:NSUserDomainMask
+-                               appendPathComponent:executableName
++                               appendPathComponent:appName
+                                              error:&error];
+     if (!result) {
+         NSLog(@"Unable to find or create application support directory:\n%@", error);
+@@ -117,10 +122,17 @@
+ }
+ 
+ - (NSString *)legacyApplicationSupportDirectory {
++    NSString *appName =
++        [[[NSBundle mainBundle] infoDictionary] objectForKey:(id)kCFBundleNameKey];
++    if (appName.length == 0) {
++        // Without a name of its own there is no directory of its own: never Application Support itself.
++        NSLog(@"No CFBundleName, so no application support directory");
++        return nil;
++    }
+     NSError *error;
+     NSString *result = [self findOrCreateDirectory:NSApplicationSupportDirectory
+                                           inDomain:NSUserDomainMask
+-                               appendPathComponent:@"iTerm"
++                               appendPathComponent:appName
+                                              error:&error];
+     if (!result) {
+         NSLog(@"Unable to find or create application support directory:\n%@", error);
+--- a/sources/HotkeyWindowController.m
++++ b/sources/HotkeyWindowController.m
+@@ -301,7 +301,7 @@
+ - (void)storePreviouslyActiveApp {
+     NSDictionary *activeAppDict = [[NSWorkspace sharedWorkspace] activeApplication];
+     HKWLog(@"Active app is %@", activeAppDict);
+-    if (![[activeAppDict objectForKey:@"NSApplicationBundleIdentifier"] isEqualToString:@"com.googlecode.iterm2"]) {
++    if (![[activeAppDict objectForKey:@"NSApplicationBundleIdentifier"] isEqualToString:[[NSBundle mainBundle] bundleIdentifier]]) {
+         self.previouslyActiveAppPID = activeAppDict[@"NSApplicationProcessIdentifier"];
+     } else {
+         self.previouslyActiveAppPID = nil;
+--- a/sources/iTermLaunchServices.m
++++ b/sources/iTermLaunchServices.m
+@@ -116,8 +116,7 @@
+ - (Profile *)profileForScheme:(NSString *)url {
+     NSString* handlerId = (NSString *)LSCopyDefaultHandlerForURLScheme((CFStringRef)url);
+     Profile *profile = nil;
+-    if ([handlerId isEqualToString:@"com.googlecode.iterm2"] ||
+-        [handlerId isEqualToString:@"net.sourceforge.iterm"]) {
++    if ([handlerId isEqualToString:[[NSBundle mainBundle] bundleIdentifier]]) {
+         profile = [[ProfileModel sharedInstance] bookmarkWithGuid:[self guidForScheme:url]];
+     }
+     if (handlerId) {

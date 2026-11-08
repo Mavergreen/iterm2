@@ -23,6 +23,10 @@ The 10.9 SDK lacks declarations the sources use (Objective-C lightweight generic
 
 `patches/0001` makes image_decoder's two casts to CF types `__bridge`, so clang22 accepts them under ARC. `patches/0005` declares `kTerminalFileShouldStopNotification` `extern` in `TerminalFile.h`, which defined it in every importer.
 
+## Identity and coexistence
+
+The app runs beside upstream iTerm2 and shares none of its writable state. Its preferences domain is its bundle id, `dev.mavergreen.iterm2.app`. `patches/0006` makes its support directory follow `CFBundleName`: `~/Library/Application Support/Mavericks iTerm2`, where shell and pasteboard history already were. Upstream's code used the executable name (`iTerm2`, shared by both apps) and the literal `iTerm`, whose `Scripts/AutoLaunch.scpt` runs at every launch. The hotkey window and the URL handler now recognize this app by its own bundle id. What stays shared, on purpose: the password manager's keychain service (`iTerm2`, the same user's passwords). What stays upstream's: two error domains, and text that names upstream's preferences file. The app has no sockets or named connections, and it declares URL types without ever making itself their default. `tests/identity-test.sh` holds the prepared source to this.
+
 ## Dependency dispositions
 
 `components/dependencies.tsv` names each framework the pinned release links or embeds, and what this build does with it:
