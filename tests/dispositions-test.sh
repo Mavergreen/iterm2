@@ -3,7 +3,7 @@
 # spec: BUILD.md "Dependency dispositions" -- patches 0002-0004 remove every Growl, NMSSH and old-Sparkle reference from the
 #       pinned source, each touching only the files its contract lists, while the callers and the
 #       stored names (GrowlTrigger, PTYSession, the "BM Growl" key) stay byte-identical; the patch set
-#       is exactly 0001-0007; the updater bundle id is never a literal; the nib shim stands alone.
+#       is exactly 0001-0008; the updater bundle id is never a literal; the nib shim stands alone.
 set -eu
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d "${TMPDIR:-/tmp}/iterm-dispositions-test.XXXXXX")
@@ -23,8 +23,9 @@ expect='0001-image-decoder-arc-bridges.patch
 0004-family-updater.patch
 0005-terminal-file-extern.patch
 0006-coexist-with-upstream.patch
-0007-tmux-send-control-c-first.patch'
-[ "$(cd "$REPO_ROOT/patches" && ls *.patch)" = "$expect" ] || fail "the patch set is not exactly 0001-0007"
+0007-tmux-send-control-c-first.patch
+0008-tmux-no-server-values-in-commands.patch'
+[ "$(cd "$REPO_ROOT/patches" && ls *.patch)" = "$expect" ] || fail "the patch set is not exactly 0001-0008"
 
 touches() { # PATCH -- the files a patch writes, sorted, one per line
   sed -n 's|^+++ b/||p' "$REPO_ROOT/patches/$1" | sort | tr '\n' ' '
@@ -41,6 +42,8 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
   || fail "0006 touches other files"
 [ "$(touches 0007-tmux-send-control-c-first.patch)" = 'sources/PTYSession.m sources/TmuxController.h sources/TmuxController.m ' ] \
   || fail "0007 touches other files"
+[ "$(touches 0008-tmux-no-server-values-in-commands.patch)" = 'sources/PTYSession.m sources/TmuxController.h sources/TmuxController.m sources/TmuxDashboardController.m sources/TmuxSessionsTable.h sources/TmuxSessionsTable.m sources/TmuxWindowsTable.h sources/TmuxWindowsTable.m ' ] \
+  || fail "0008 touches other files"
 
 if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/log" 2>&1; then
   left=$(grep -rIlE 'Growl/Growl\.h|GrowlApplicationBridge|NMSSH/|NMSSH[A-Z]|libssh2[_.]|Sparkle/|SUUpdaterWillRestartNotification|SUFeedURL([^A-Za-z]|$)|refreshSoftwareUpdateUserDefaults' \
@@ -50,12 +53,16 @@ if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/lo
            sources/TransferrableFile.m sources/FileTransferManager.m; do
     cmp -s "$T/pristine/$f" "$T/src/$f" || fail "$f changed"
   done
-  # spec: SECURITY.md CVE-2023-46300 -- PTYSession.m carries 0007's security fix and nothing from 0002-0004
-  mkdir -p "$T/only7/sources"; cp "$T/pristine/sources/PTYSession.m" "$T/only7/sources/"
-  sed -n '/^--- a\/sources\/PTYSession.m$/,/^--- a\//p' "$REPO_ROOT/patches/0007-tmux-send-control-c-first.patch" \
-    | sed '$ { /^--- a\//d; }' > "$T/only7.patch"
-  (cd "$T/only7" && patch -s -p1 < "$T/only7.patch") && cmp -s "$T/only7/sources/PTYSession.m" "$T/src/sources/PTYSession.m" \
-    || fail "sources/PTYSession.m changed beyond 0007"
+  # spec: SECURITY.md CVE-2023-46300, CVE-2019-9535 -- PTYSession.m carries the tmux security fixes (0007,
+  #       0008) and nothing from 0002-0004
+  mkdir -p "$T/only-tmux/sources"; cp "$T/pristine/sources/PTYSession.m" "$T/only-tmux/sources/"
+  ok=yes
+  for p in 0007-tmux-send-control-c-first.patch 0008-tmux-no-server-values-in-commands.patch; do
+    sed -n '/^--- a\/sources\/PTYSession.m$/,/^--- a\//p' "$REPO_ROOT/patches/$p" | sed '$ { /^--- a\//d; }' > "$T/hunks.patch"
+    (cd "$T/only-tmux" && patch -s -p1 < "$T/hunks.patch") || ok=no
+  done
+  [ "$ok" = yes ] && cmp -s "$T/only-tmux/sources/PTYSession.m" "$T/src/sources/PTYSession.m" \
+    || fail "sources/PTYSession.m changed beyond 0007 and 0008"
   grep -q '@ITERM_UPDATER_BUNDLE_ID' "$T/src/sources/iTermApplicationDelegate.m" \
     || fail "checkForUpdates: does not use the ITERM_UPDATER_BUNDLE_ID definition"
   ! grep -rq 'dev\.mavergreen' "$T/src/sources" || fail "a Mavergreen identity is a literal in the source"
@@ -78,7 +85,7 @@ if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/lo
     && grep -q 'didFinishTransmissionWithError:error' "$T/src/sources/SCPFile.m" \
     || fail "an scp transfer does not end in a reported error"
 else
-  cat "$T/log" >&2; fail "patches 0001-0007 do not apply to the pinned source without fuzz"
+  cat "$T/log" >&2; fail "patches 0001-0008 do not apply to the pinned source without fuzz"
 fi
 
 for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-cross/bin/clang; do

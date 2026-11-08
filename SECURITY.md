@@ -15,7 +15,7 @@ Each marker's `security/fixtures/<id>.txt` is an excerpt of what the feature loo
 
 | Advisory | Fixed upstream in | What | Status |
 |---|---|---|---|
-| CVE-2019-9535 | 3.3.6 | tmux integration sends names the server controls as tmux commands, so terminal output can run commands | pending: fixed before daily use |
+| CVE-2019-9535 | 3.3.6 | tmux integration sends names the server controls as tmux commands, so terminal output can run commands | fixed: `patches/0008` targets sessions by number and hex-encodes stored options, as upstream does |
 | CVE-2023-46300 | 3.4.20 | tmux integration runs a command left typed before integration starts; upstream sends Control-C first | fixed: `patches/0007` sends Control-C first, as upstream does |
 | CVE-2015-9231 | 3.1.1 | text under the pointer is looked up over DNS (`AsyncHostLookupController`), leaking it | pending: fixed before daily use |
 | CVE-2022-45872 | 3.4.18 | the DECRQSS reply echoes its argument | absent: 3.0.15 has no DECRQSS reply |

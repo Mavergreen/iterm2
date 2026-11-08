@@ -1,4 +1,5 @@
 #import "fake-tmux.h"
+#import "TmuxController.h"
 
 @implementation FakeTmuxSession
 
@@ -23,7 +24,10 @@
 - (void)tmuxWindowRenamedWithId:(int)windowId to:(NSString *)newName { }
 - (void)tmuxHostDisconnected { }
 - (void)tmuxReadTask:(NSData *)data { }
-- (void)tmuxSessionChanged:(NSString *)sessionName sessionId:(int)sessionId { }
+// As PTYSession does: the gateway's parsed %session-changed goes to the controller.
+- (void)tmuxSessionChanged:(NSString *)sessionName sessionId:(int)sessionId {
+    [_controller sessionChangedTo:sessionName sessionId:sessionId];
+}
 - (void)tmuxSessionsChanged { }
 - (void)tmuxWindowsDidChange { }
 - (void)tmuxSession:(int)sessionId renamed:(NSString *)newName { }

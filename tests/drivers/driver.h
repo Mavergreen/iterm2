@@ -8,4 +8,4 @@ static int driver_failures;
     if (cond) { printf("ok: %s\n", (name)); } \
     else { printf("FAIL: %s\n", (name)); driver_failures++; } \
   } while (0)
-#define DRIVER_MAIN(body) int main(void) { @autoreleasepool { body } return driver_failures ? 1 : 0; }
+#define DRIVER_MAIN(...) int main(void) { @autoreleasepool { __VA_ARGS__ } return driver_failures ? 1 : 0; }

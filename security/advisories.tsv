@@ -1,5 +1,5 @@
 id	fixed_in	feature	status	marker	patch
-CVE-2019-9535	3.3.6	tmux integration sends server-controlled names as tmux commands	pending	-	-
+CVE-2019-9535	3.3.6	tmux integration sends server-controlled names as tmux commands	fixed	-	0008-tmux-no-server-values-in-commands.patch
 CVE-2023-46300	3.4.20	tmux integration runs a command left typed before integration starts	fixed	-	0007-tmux-send-control-c-first.patch
 CVE-2015-9231	3.1.1	hovered text is looked up over DNS	pending	-	-
 CVE-2022-45872	3.4.18	the DECRQSS reply echoes its argument	absent	decrqss	-

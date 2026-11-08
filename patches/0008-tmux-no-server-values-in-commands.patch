@@ -1,0 +1,833 @@
+tmux integration: never send server-controlled values as commands (CVE-2019-9535).
+
+Backported from upstream b316c29f4b (3.3.6), "Do not send
+server-controlled values in tmux integration mode", adapted to 3.0.15.
+
+- Sessions are targeted by number ($N) everywhere: attach, kill, rename,
+  list-windows, link-window, new-window and rename-window. A session's
+  name is the server's to choose, and it used to be spliced into these
+  commands; four of them did not even escape it. list-sessions now
+  reports "#{session_id} #{session_name}", and the dashboard's tables
+  carry iTermTmuxSessionObject (number and name) and show the name only.
+  Upstream added iTermTmuxSessionObject as its own file; here it lives in
+  TmuxController.[hm], so the Xcode project's source list stands.
+- Options this app stores in the server (@affinities, @origins, @hidden)
+  are written hex-encoded behind upstream's prefixes (a_, o_, i_). A
+  value returned by the server can therefore never close the quotes of
+  the command that writes it back. Plain values from upstream iTerm2 or
+  an older build are still read; a malformed encoded value reads as
+  empty. The encoding is of UTF-8 bytes: NSString's hexEncodedString
+  encodes UTF-16 units, which do not survive a round trip for non-ASCII.
+- A window name typed by the user is escaped as one quoted argument.
+- 3.0.15 has none of what upstream's fix also changed for set-titles-
+  string, status-left/right polling, hotkeys or tab colors.
+
+--- a/sources/TmuxController.h
++++ b/sources/TmuxController.h
+@@ -14,6 +14,13 @@
+ @class PseudoTerminal;
+ @class EquivalenceClassSet;
+ 
++// A tmux session as list-sessions reports it. Commands target sessions by number, never by name,
++// because the name is the server's to choose (CVE-2019-9535).
++@interface iTermTmuxSessionObject : NSObject
++@property(nonatomic, copy) NSString *name;
++@property(nonatomic, assign) int number;
++@end
++
+ // Posted when sessions change (names, addition, deletion)
+ extern NSString *const kTmuxControllerSessionsDidChange;
+ // Posted after detaching
+@@ -36,7 +43,7 @@
+ @property(nonatomic, readonly) TmuxGateway *gateway;
+ @property(nonatomic, retain) NSMutableDictionary *windowPositions;
+ @property(nonatomic, copy) NSString *sessionName;
+-@property(nonatomic, retain) NSArray *sessions;
++@property(nonatomic, copy) NSArray<iTermTmuxSessionObject *> *sessionObjects;
+ @property(nonatomic, assign) BOOL ambiguousIsDoubleWidth;
+ @property(nonatomic, readonly) NSString *clientName;
+ @property(nonatomic, readonly) int sessionId;
+@@ -86,7 +93,7 @@
+          resizedBy:(int)amount
+       horizontally:(BOOL)wasHorizontal;
+ - (void)splitWindowPane:(int)wp vertically:(BOOL)splitVertically;
+-- (void)newWindowInSession:(NSString *)targetSession afterWindowWithName:(NSString *)predecessorWindow;
++- (void)newWindowInSessionNumber:(NSNumber *)sessionNumber;
+ 
+ - (PseudoTerminal *)windowWithAffinityForWindowId:(int)wid;
+ // nil: Open in a new window
+@@ -102,22 +109,24 @@
+ 
+ - (void)killWindowPane:(int)windowPane;
+ - (void)killWindow:(int)window;
+-- (void)unlinkWindowWithId:(int)windowId inSession:(NSString *)sessionName;
++- (void)unlinkWindowWithId:(int)windowId;
+ - (void)requestDetach;
+-- (void)renameWindowWithId:(int)windowId inSession:(NSString *)sessionName toName:(NSString *)newName;
++- (void)renameWindowWithId:(int)windowId
++           inSessionNumber:(NSNumber *)sessionNumber
++                    toName:(NSString *)newName;
+ - (void)linkWindowId:(int)windowId
+-           inSession:(NSString *)sessionName
+-           toSession:(NSString *)targetSession;
++     inSessionNumber:(int)sessionNumber
++     toSessionNumber:(int)targetSessionNumber;
+ 
+-- (void)renameSession:(NSString *)oldName to:(NSString *)newName;
+-- (void)killSession:(NSString *)sessionName;
+-- (void)attachToSession:(NSString *)sessionName;
++- (void)renameSessionNumber:(int)sessionNumber to:(NSString *)newName;
++- (void)killSessionNumber:(int)sessionNumber;
++- (void)attachToSessionWithNumber:(int)sessionNumber;
+ - (void)addSessionWithName:(NSString *)sessionName;
+-// NOTE: If the session name is bogus (or any other error occurs) the selector will not be called.
+-- (void)listWindowsInSession:(NSString *)sessionName
+-                      target:(id)target
+-                    selector:(SEL)selector
+-                      object:(id)object;
++// NOTE: If anything goes wrong the selector will not be called.
++- (void)listWindowsInSessionNumber:(int)sessionNumber
++                            target:(id)target
++                          selector:(SEL)selector
++                            object:(id)object;
+ - (void)listSessions;
+ - (void)saveAffinities;
+ - (void)saveWindowOrigins;
+--- a/sources/TmuxController.m
++++ b/sources/TmuxController.m
+@@ -49,11 +49,62 @@
+ 
+ @end
+ 
++@implementation iTermTmuxSessionObject
++
++- (void)dealloc {
++    [_name release];
++    [super dealloc];
++}
++
++@end
++
++// Options this app stores in the tmux server are written hex-encoded behind a prefix (upstream's
++// prefixes, so either app reads the other's), so a value the server returns can never close the
++// quotes of the command that writes it back. A value without the prefix is an old plain one and is
++// read as it is. A malformed encoded value reads as empty (CVE-2019-9535).
++static NSString *const iTermTmuxEncodingPrefixAffinities = @"a_";
++static NSString *const iTermTmuxEncodingPrefixOrigins = @"o_";
++static NSString *const iTermTmuxEncodingPrefixHidden = @"i_";
++
++static NSString *iTermTmuxEncoded(NSString *string, NSString *prefix) {
++    NSData *data = [string dataUsingEncoding:NSUTF8StringEncoding];
++    NSMutableString *result = [NSMutableString stringWithString:prefix];
++    const unsigned char *bytes = data.bytes;
++    for (NSUInteger i = 0; i < data.length; i++) {
++        [result appendFormat:@"%02x", bytes[i]];
++    }
++    return result;
++}
++
++static NSString *iTermTmuxDecoded(NSString *string, NSString *prefix) {
++    if (![string hasPrefix:prefix]) {
++        return string;
++    }
++    NSString *hex = [string substringFromIndex:prefix.length];
++    NSCharacterSet *notHex = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"] invertedSet];
++    if (hex.length % 2 || [hex rangeOfCharacterFromSet:notHex].location != NSNotFound) {
++        return @"";
++    }
++    NSMutableData *data = [NSMutableData dataWithCapacity:hex.length / 2];
++    for (NSUInteger i = 0; i < hex.length; i += 2) {
++        unsigned char byte = (unsigned char)strtoul([[hex substringWithRange:NSMakeRange(i, 2)] UTF8String], NULL, 16);
++        [data appendBytes:&byte length:1];
++    }
++    return [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease] ?: @"";
++}
++
++// A window name typed by the user, as one double-quoted tmux argument.
++static NSString *iTermTmuxQuotedName(NSString *name) {
++    NSString *oneLine = [[name componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]
++                            componentsJoinedByString:@" "];
++    return [oneLine stringByEscapingQuotes];
++}
++
+ @implementation TmuxController {
+     TmuxGateway *gateway_;
+     NSMutableDictionary *windowPanes_;  // paneId -> PTYSession *
+     NSMutableDictionary *windows_;      // window -> [PTYTab *, refcount]
+-    NSArray *sessions_;
++    NSArray<iTermTmuxSessionObject *> *sessionObjects_;
+     int numOutstandingWindowResizes_;
+     NSMutableDictionary *windowPositions_;
+     NSSize lastSize_;  // last size for windowDidChange:
+@@ -83,7 +134,7 @@
+ @synthesize gateway = gateway_;
+ @synthesize windowPositions = windowPositions_;
+ @synthesize sessionName = sessionName_;
+-@synthesize sessions = sessions_;
++@synthesize sessionObjects = sessionObjects_;
+ @synthesize ambiguousIsDoubleWidth = ambiguousIsDoubleWidth_;
+ @synthesize sessionId = sessionId_;
+ 
+@@ -106,6 +157,7 @@
+ 
+ - (void)dealloc {
+     [_clientName release];
++    [sessionObjects_ release];
+     [gateway_ release];
+     [windowPanes_ release];
+     [windows_ release];
+@@ -335,7 +387,7 @@
+     NSString *setSizeCommand = [NSString stringWithFormat:@"refresh-client -C %d,%d",
+              (int)size.width, (int)size.height];
+     NSString *listWindowsCommand = [NSString stringWithFormat:@"list-windows -F %@", kListWindowsFormat];
+-    NSString *listSessionsCommand = @"list-sessions -F \"#{session_name}\"";
++    NSString *listSessionsCommand = @"list-sessions -F \"#{session_id} #{session_name}\"";
+     NSString *getAffinitiesCommand = [NSString stringWithFormat:@"show -v -q -t $%d @affinities", sessionId_];
+     NSString *getOriginsCommand = [NSString stringWithFormat:@"show -v -q -t $%d @origins", sessionId_];
+     NSString *getHiddenWindowsCommand = [NSString stringWithFormat:@"show -v -q -t $%d @hidden", sessionId_];
+@@ -689,11 +741,10 @@
+          responseSelector:nil];
+ }
+ 
+-- (void)newWindowInSession:(NSString *)targetSession
+-       afterWindowWithName:(NSString *)predecessorWindow
++- (void)newWindowInSessionNumber:(NSNumber *)sessionNumber
+ {
+-    [gateway_ sendCommand:[NSString stringWithFormat:@"new-window -a -t \"%@:+\" -PF '#{window_id}'",
+-                           [targetSession stringByEscapingQuotes]]
++    [gateway_ sendCommand:[NSString stringWithFormat:@"new-window -a -t \"$%d:+\" -PF '#{window_id}'",
++                           sessionNumber.intValue]
+            responseTarget:nil
+          responseSelector:nil];
+ }
+@@ -726,7 +777,7 @@
+          responseSelector:nil];
+ }
+ 
+-- (void)unlinkWindowWithId:(int)windowId inSession:(NSString *)sessionName
++- (void)unlinkWindowWithId:(int)windowId
+ {
+     [gateway_ sendCommand:[NSString stringWithFormat:@"unlink-window -k -t @%d", windowId]
+            responseTarget:nil
+@@ -736,13 +787,14 @@
+ }
+ 
+ - (void)renameWindowWithId:(int)windowId
+-                 inSession:(NSString *)sessionName
++           inSessionNumber:(NSNumber *)sessionNumber
+                     toName:(NSString *)newName {
+     NSString *theCommand;
+-    if (sessionName) {
+-        theCommand = [NSString stringWithFormat:@"rename-window -t \"%@:@%d\" \"%@\"", sessionName, windowId, newName];
++    if (sessionNumber) {
++        theCommand = [NSString stringWithFormat:@"rename-window -t \"$%d:@%d\" \"%@\"",
++                      sessionNumber.intValue, windowId, iTermTmuxQuotedName(newName)];
+     } else {
+-        theCommand = [NSString stringWithFormat:@"rename-window -t @%d \"%@\"", windowId, newName];
++        theCommand = [NSString stringWithFormat:@"rename-window -t @%d \"%@\"", windowId, iTermTmuxQuotedName(newName)];
+     }
+     [gateway_ sendCommand:theCommand
+            responseTarget:nil
+@@ -823,11 +875,11 @@
+ }
+ 
+ - (void)linkWindowId:(int)windowId
+-           inSession:(NSString *)sessionName
+-           toSession:(NSString *)targetSession
++     inSessionNumber:(int)sessionNumber
++     toSessionNumber:(int)targetSessionNumber
+ {
+-    [gateway_ sendCommand:[NSString stringWithFormat:@"link-window -s \"%@:@%d\" -t \"%@:+\"",
+-                           sessionName, windowId, targetSession]
++    [gateway_ sendCommand:[NSString stringWithFormat:@"link-window -s \"$%d:@%d\" -t \"$%d:+\"",
++                           sessionNumber, windowId, targetSessionNumber]
+            responseTarget:nil
+          responseSelector:nil];
+ }
+@@ -847,18 +899,17 @@
+     return pos;
+ }
+ 
+-- (void)renameSession:(NSString *)oldName to:(NSString *)newName
++- (void)renameSessionNumber:(int)sessionNumber to:(NSString *)newName
+ {
+-    NSString *renameCommand = [NSString stringWithFormat:@"rename-session -t \"%@\" \"%@\"",
+-                               [oldName stringByEscapingQuotes],
++    NSString *renameCommand = [NSString stringWithFormat:@"rename-session -t \"$%d\" \"%@\"",
++                               sessionNumber,
+                                [newName stringByEscapingQuotes]];
+     [gateway_ sendCommand:renameCommand responseTarget:nil responseSelector:nil];
+ }
+ 
+-- (void)killSession:(NSString *)sessionName
++- (void)killSessionNumber:(int)sessionNumber
+ {
+-    NSString *killCommand = [NSString stringWithFormat:@"kill-session -t \"%@\"",
+-                                [sessionName stringByEscapingQuotes]];
++    NSString *killCommand = [NSString stringWithFormat:@"kill-session -t \"$%d\"", sessionNumber];
+     [gateway_ sendCommand:killCommand responseTarget:nil responseSelector:nil];
+     [self listSessions];
+ }
+@@ -873,26 +924,25 @@
+     [self listSessions];
+ }
+ 
+-- (void)attachToSession:(NSString *)sessionName
++- (void)attachToSessionWithNumber:(int)sessionNumber
+ {
+-    NSString *attachCommand = [NSString stringWithFormat:@"attach-session -t \"%@\"",
+-                             [sessionName stringByEscapingQuotes]];
++    NSString *attachCommand = [NSString stringWithFormat:@"attach-session -t \"$%d\"", sessionNumber];
+     [gateway_ sendCommand:attachCommand
+            responseTarget:nil
+          responseSelector:nil];
+ }
+ 
+-- (void)listWindowsInSession:(NSString *)sessionName
+-                      target:(id)target
+-                    selector:(SEL)selector
+-                      object:(id)object
++- (void)listWindowsInSessionNumber:(int)sessionNumber
++                            target:(id)target
++                          selector:(SEL)selector
++                            object:(id)object
+ {
+     if (detached_) {
+         // Shouldn't happen, but better safe than sorry.
+         return;
+     }
+-    NSString *listWindowsCommand = [NSString stringWithFormat:@"list-windows -F %@ -t \"%@\"",
+-                                    kListWindowsFormat, sessionName];
++    NSString *listWindowsCommand = [NSString stringWithFormat:@"list-windows -F %@ -t \"$%d\"",
++                                    kListWindowsFormat, sessionNumber];
+     // Wait a few seconds. We always get a windows-close notification when the last window in
+     // a window closes. To avoid spamming the command line with list-windows, we wait a bit to see
+     // if there is an exit notification coming down the pipe.
+@@ -931,7 +981,7 @@
+     NSString *hidden = [[hiddenWindows_ allObjects] componentsJoinedByString:@","];
+     NSString *command = [NSString stringWithFormat:
+         @"set -t $%d @hidden \"%@\"",
+-        sessionId_, hidden];
++        sessionId_, iTermTmuxEncoded(hidden, iTermTmuxEncodingPrefixHidden)];
+     [gateway_ sendCommand:command
+            responseTarget:nil
+          responseSelector:nil
+@@ -975,7 +1025,7 @@
+     NSString *enc = [maps componentsJoinedByString:@" "];
+     DLog(@"Save window origins to %@ called from %@", enc, [NSThread callStackSymbols]);
+     NSString *command = [NSString stringWithFormat:@"set -t $%d @origins \"%@\"",
+-             sessionId_, [enc stringByEscapingQuotes]];
++             sessionId_, iTermTmuxEncoded(enc, iTermTmuxEncodingPrefixOrigins)];
+     if (!lastOrigins_ || ![command isEqualToString:lastOrigins_]) {
+         [lastOrigins_ release];
+         lastOrigins_ = [command copy];
+@@ -1032,7 +1082,7 @@
+     // Update affinities if any have changed.
+     NSString *arg = [affinities componentsJoinedByString:@" "];
+     NSString *command = [NSString stringWithFormat:@"set -t $%d @affinities \"%@\"",
+-                         sessionId_, [arg stringByEscapingQuotes]];
++                         sessionId_, iTermTmuxEncoded(arg, iTermTmuxEncodingPrefixAffinities)];
+     if ([command isEqualToString:lastSaveAffinityCommand_]) {
+         return;
+     }
+@@ -1090,7 +1140,7 @@
+ {
+     [listSessionsTimer_ invalidate];
+     listSessionsTimer_ = nil;
+-    NSString *listSessionsCommand = @"list-sessions -F \"#{session_name}\"";
++    NSString *listSessionsCommand = @"list-sessions -F \"#{session_id} #{session_name}\"";
+     [gateway_ sendCommand:listSessionsCommand
+            responseTarget:self
+          responseSelector:@selector(listSessionsResponse:)];
+@@ -1129,8 +1179,9 @@
+ 
+ #pragma mark - Private
+ 
+-- (void)getOriginsResponse:(NSString *)result
++- (void)getOriginsResponse:(NSString *)encodedResult
+ {
++  NSString *result = iTermTmuxDecoded(encodedResult, iTermTmuxEncodingPrefixOrigins);
+   [origins_ removeAllObjects];
+   if ([result length] > 0) {
+     NSArray *windows = [result componentsSeparatedByString:@" "];
+@@ -1177,8 +1228,9 @@
+     [target performSelector:selector withObject:doc withObject:object];
+ }
+ 
+-- (void)getHiddenWindowsResponse:(NSString *)response
++- (void)getHiddenWindowsResponse:(NSString *)encodedResponse
+ {
++    NSString *response = iTermTmuxDecoded(encodedResponse, iTermTmuxEncodingPrefixHidden);
+     [hiddenWindows_ removeAllObjects];
+     if ([response length] > 0) {
+         NSArray *windowIds = [response componentsSeparatedByString:@","];
+@@ -1190,7 +1242,7 @@
+ }
+ 
+ - (void)getAffinitiesResponse:(NSString *)result {
+-    [self setAffinitiesFromString:result];
++    [self setAffinitiesFromString:iTermTmuxDecoded(result, iTermTmuxEncodingPrefixAffinities)];
+ }
+ 
+ - (NSArray *)componentsOfAffinities:(NSString *)affinities {
+@@ -1259,9 +1311,25 @@
+ 
+ - (void)listSessionsResponse:(NSString *)result
+ {
+-    self.sessions = [result componentsSeparatedByRegex:@"\n"];
++    NSMutableArray<iTermTmuxSessionObject *> *objects = [NSMutableArray array];
++    for (NSString *line in [result componentsSeparatedByRegex:@"\n"]) {
++        NSRange space = [line rangeOfString:@" "];
++        if (space.location == NSNotFound || ![line hasPrefix:@"$"]) {
++            continue;
++        }
++        NSScanner *scanner = [NSScanner scannerWithString:[line substringWithRange:NSMakeRange(1, space.location - 1)]];
++        int number = -1;
++        if (![scanner scanInt:&number] || ![scanner isAtEnd] || number < 0) {
++            continue;
++        }
++        iTermTmuxSessionObject *object = [[[iTermTmuxSessionObject alloc] init] autorelease];
++        object.number = number;
++        object.name = [line substringFromIndex:NSMaxRange(space)];
++        [objects addObject:object];
++    }
++    self.sessionObjects = objects;
+     [[NSNotificationCenter defaultCenter] postNotificationName:kTmuxControllerSessionsDidChange
+-                                                        object:self.sessions];
++                                                        object:nil];
+ }
+ 
+ - (void)listedWindowsToOpenOne:(NSString *)response forWindowIdAndAffinities:(NSArray *)values {
+--- a/sources/TmuxDashboardController.m
++++ b/sources/TmuxDashboardController.m
+@@ -40,7 +40,7 @@
+     if (self) {
+         [self window];
+ 
+-        [sessionsTable_ selectSessionWithName:[[self tmuxController] sessionName]];
++        [sessionsTable_ selectSessionNumber:[[self tmuxController] sessionId]];
+         [self reloadWindows];
+         [[NSNotificationCenter defaultCenter] addObserver:self
+                                                  selector:@selector(tmuxControllerDetached:)
+@@ -108,14 +108,14 @@
+ 
+ #pragma mark TmuxSessionsTableProtocol
+ 
+-- (void)renameSessionWithName:(NSString *)oldName toName:(NSString *)newName
++- (void)renameSessionWithNumber:(int)sessionNumber toName:(NSString *)newName
+ {
+-    [[self tmuxController] renameSession:oldName to:newName];
++    [[self tmuxController] renameSessionNumber:sessionNumber to:newName];
+ }
+ 
+-- (void)removeSessionWithName:(NSString *)sessionName
++- (void)removeSessionWithNumber:(int)sessionNumber
+ {
+-    [[self tmuxController] killSession:sessionName];
++    [[self tmuxController] killSessionNumber:sessionNumber];
+ }
+ 
+ - (void)addSessionWithName:(NSString *)sessionName
+@@ -123,9 +123,9 @@
+     [[self tmuxController] addSessionWithName:sessionName];
+ }
+ 
+-- (void)attachToSessionWithName:(NSString *)sessionName
++- (void)attachToSessionWithNumber:(int)sessionNumber
+ {
+-    [[self tmuxController] attachToSession:sessionName];
++    [[self tmuxController] attachToSessionWithNumber:sessionNumber];
+ }
+ 
+ - (void)detach
+@@ -133,44 +133,49 @@
+     [[self tmuxController] requestDetach];
+ }
+ 
+-- (NSString *)nameOfAttachedSession
++- (NSNumber *)numberOfAttachedSession
+ {
+-    return [[self tmuxController] sessionName];
++    TmuxController *controller = [self tmuxController];
++    return controller ? @(controller.sessionId) : nil;
+ }
+ 
+-- (NSArray *)sessions
++- (NSArray<iTermTmuxSessionObject *> *)sessionObjects
+ {
+-    return [[self tmuxController] sessions];
++    return [[self tmuxController] sessionObjects];
+ }
+ 
+-- (void)selectedSessionChangedTo:(NSString *)newSessionName
++- (void)selectedSessionDidChange
+ {
+     [windowsTable_ setWindows:[NSArray array]];
+     [self reloadWindows];
+ }
+ 
+ - (void)linkWindowId:(int)windowId
+-           inSession:(NSString *)sessionName
+-           toSession:(NSString *)targetSession
++     inSessionNumber:(int)sessionNumber
++     toSessionNumber:(int)targetSessionNumber
+ {
+     [[self tmuxController] linkWindowId:windowId
+-                              inSession:sessionName
+-                              toSession:targetSession];
++                        inSessionNumber:sessionNumber
++                        toSessionNumber:targetSessionNumber];
+ }
+ 
+ #pragma mark TmuxWindowsTableProtocol
+ 
+ - (void)reloadWindows
+ {
+-    [[self tmuxController] listWindowsInSession:[sessionsTable_ selectedSessionName]
+-                                         target:self
+-                                       selector:@selector(setWindows:forSession:)
+-                                         object:[sessionsTable_ selectedSessionName]];
++    NSNumber *sessionNumber = [sessionsTable_ selectedSessionNumber];
++    if (!sessionNumber) {
++        return;
++    }
++    [[self tmuxController] listWindowsInSessionNumber:sessionNumber.intValue
++                                               target:self
++                                             selector:@selector(setWindows:forSession:)
++                                               object:sessionNumber];
+ }
+ 
+-- (void)setWindows:(TSVDocument *)doc forSession:(NSString *)sessionName
++- (void)setWindows:(TSVDocument *)doc forSession:(NSNumber *)sessionNumber
+ {
+-    if ([sessionName isEqualToString:[sessionsTable_ selectedSessionName]]) {
++    if ([sessionNumber isEqual:[sessionsTable_ selectedSessionNumber]]) {
+         NSMutableArray *windows = [NSMutableArray array];
+         for (NSArray *record in doc.records) {
+             [windows addObject:[NSMutableArray arrayWithObjects:
+@@ -185,24 +190,22 @@
+ - (void)renameWindowWithId:(int)windowId toName:(NSString *)newName
+ {
+     [[self tmuxController] renameWindowWithId:windowId
+-                                    inSession:[sessionsTable_ selectedSessionName]
++                              inSessionNumber:[sessionsTable_ selectedSessionNumber]
+                                        toName:newName];
+     [self reloadWindows];
+ }
+ 
+ - (void)unlinkWindowWithId:(int)windowId
+ {
+-    [[self tmuxController] unlinkWindowWithId:windowId
+-                                    inSession:[sessionsTable_ selectedSessionName]];
++    [[self tmuxController] unlinkWindowWithId:windowId];
+     [self reloadWindows];
+ }
+ 
+ - (void)addWindow
+ {
+-    NSString *lastName = [[windowsTable_ names] lastObject];
+-    if (lastName) {
+-        [[self tmuxController] newWindowInSession:[sessionsTable_ selectedSessionName]
+-                              afterWindowWithName:lastName];
++    NSNumber *sessionNumber = [sessionsTable_ selectedSessionNumber];
++    if (sessionNumber) {
++        [[self tmuxController] newWindowInSessionNumber:sessionNumber];
+     }
+ }
+ 
+@@ -231,12 +234,12 @@
+ 
+ - (BOOL)haveSelectedSession
+ {
+-    return [sessionsTable_ selectedSessionName] != nil;
++    return [sessionsTable_ selectedSessionNumber] != nil;
+ }
+ 
+ - (BOOL)currentSessionSelected
+ {
+-    return [[sessionsTable_ selectedSessionName] isEqualToString:[[self tmuxController] sessionName]];
++    return [[sessionsTable_ selectedSessionNumber] isEqual:[self numberOfAttachedSession]];
+ }
+ 
+ - (BOOL)haveOpenWindowWithId:(int)windowId
+@@ -249,21 +252,21 @@
+     [tab.activeSession reveal];
+ }
+ 
+-- (NSString *)selectedSessionName
++- (NSNumber *)selectedSessionNumber
+ {
+-    return [sessionsTable_ selectedSessionName];
++    return [sessionsTable_ selectedSessionNumber];
+ }
+ 
+ #pragma mark - Private
+ 
+ - (void)tmuxControllerDetached:(NSNotification *)notification
+ {
+-    [sessionsTable_ setSessions:[NSArray array]];
++    [sessionsTable_ setSessionObjects:[NSArray array]];
+ }
+ 
+ - (void)tmuxControllerSessionsDidChange:(NSNotification *)notification
+ {
+-    [sessionsTable_ setSessions:[[self tmuxController] sessions]];
++    [sessionsTable_ setSessionObjects:[[self tmuxController] sessionObjects]];
+ }
+ 
+ - (void)tmuxControllerWindowsDidChange:(NSNotification *)notification
+@@ -276,7 +279,7 @@
+ - (void)tmuxControllerAttachedSessionChanged:(NSNotification *)notification
+ {
+     if ([[self window] isVisible]) {
+-        [sessionsTable_ selectSessionWithName:[[self tmuxController] sessionName]];
++        [sessionsTable_ selectSessionNumber:[[self tmuxController] sessionId]];
+         [windowsTable_ updateEnabledStateOfButtons];
+     }
+ }
+@@ -330,7 +333,7 @@
+ 
+ 
+ - (IBAction)connectionSelectionDidChange:(id)sender {
+-    [sessionsTable_ setSessions:[[self tmuxController] sessions]];
++    [sessionsTable_ setSessionObjects:[[self tmuxController] sessionObjects]];
+     [self reloadWindows];
+ }
+ 
+--- a/sources/TmuxSessionsTable.h
++++ b/sources/TmuxSessionsTable.h
+@@ -9,18 +9,20 @@
+ #import <Cocoa/Cocoa.h>
+ #import "FutureMethods.h"
+ 
++@class iTermTmuxSessionObject;
++
+ @protocol TmuxSessionsTableProtocol <NSObject>
+ 
+-- (NSArray *)sessions;
+-- (void)renameSessionWithName:(NSString *)oldName toName:(NSString *)newName;
+-- (void)removeSessionWithName:(NSString *)sessionName;
++- (NSArray<iTermTmuxSessionObject *> *)sessionObjects;
++- (void)renameSessionWithNumber:(int)sessionNumber toName:(NSString *)newName;
++- (void)removeSessionWithNumber:(int)sessionNumber;
+ - (void)addSessionWithName:(NSString *)sessionName;
+-- (void)attachToSessionWithName:(NSString *)sessionName;
+-- (NSString *)nameOfAttachedSession;
+-- (void)selectedSessionChangedTo:(NSString *)newName;
++- (void)attachToSessionWithNumber:(int)sessionNumber;
++- (NSNumber *)numberOfAttachedSession;
++- (void)selectedSessionDidChange;
+ - (void)linkWindowId:(int)windowId
+-           inSession:(NSString *)sessionName
+-           toSession:(NSString *)targetSession;
++     inSessionNumber:(int)sessionNumber
++     toSessionNumber:(int)targetSessionNumber;
+ - (void)detach;
+ 
+ @end
+@@ -28,9 +30,9 @@
+ @interface TmuxSessionsTable : NSObject <NSTableViewDelegate, NSTableViewDataSource>
+ 
+ @property(nonatomic, assign) id<TmuxSessionsTableProtocol> delegate;
+-@property(nonatomic, readonly) NSString *selectedSessionName;
++@property(nonatomic, readonly) NSNumber *selectedSessionNumber;
+ 
+-- (void)setSessions:(NSArray *)names;
+-- (void)selectSessionWithName:(NSString *)name;
++- (void)setSessionObjects:(NSArray<iTermTmuxSessionObject *> *)sessionObjects;
++- (void)selectSessionNumber:(int)number;
+ 
+ @end
+--- a/sources/TmuxSessionsTable.m
++++ b/sources/TmuxSessionsTable.m
+@@ -8,11 +8,12 @@
+ 
+ #import "TmuxSessionsTable.h"
+ #import "FutureMethods.h"
++#import "TmuxController.h"
+ 
+ extern NSString *kWindowPasteboardType;
+ 
+ @implementation TmuxSessionsTable {
+-    NSMutableArray *model_;
++    NSMutableArray<iTermTmuxSessionObject *> *model_;
+     BOOL canAttachToSelectedSession_;
+ 
+     IBOutlet NSTableColumn *checkColumn_;
+@@ -47,19 +48,21 @@
+ 
+ - (void)setDelegate:(id<TmuxSessionsTableProtocol>)delegate {
+     delegate_ = delegate;
+-    [self setSessions:[delegate_ sessions]];
++    [self setSessionObjects:[delegate_ sessionObjects]];
+ }
+ 
+-- (void)setSessions:(NSArray *)names
++- (void)setSessionObjects:(NSArray<iTermTmuxSessionObject *> *)sessionObjects
+ {
+     [model_ removeAllObjects];
+-    [model_ addObjectsFromArray:names];
++    [model_ addObjectsFromArray:sessionObjects];
+     [tableView_ reloadData];
+ }
+ 
+-- (void)selectSessionWithName:(NSString *)name
++- (void)selectSessionNumber:(int)number
+ {
+-    NSUInteger i = [model_ indexOfObject:name];
++    NSUInteger i = [model_ indexOfObjectPassingTest:^BOOL(iTermTmuxSessionObject *obj, NSUInteger idx, BOOL *stop) {
++        return obj.number == number;
++    }];
+     if (i != NSNotFound) {
+         [tableView_ selectRowIndexes:[NSIndexSet indexSetWithIndex:i]
+                 byExtendingSelection:NO];
+@@ -74,22 +77,22 @@
+ 
+ - (IBAction)removeSession:(id)sender
+ {
+-    NSString *name = [self selectedSessionName];
+-    if (name) {
+-        [delegate_ removeSessionWithName:name];
++    NSNumber *number = [self selectedSessionNumber];
++    if (number) {
++        [delegate_ removeSessionWithNumber:number.intValue];
+     }
+ }
+ 
+ - (IBAction)attach:(id)sender {
+-    NSString *name = [self selectedSessionName];
+-    if (name) {
+-        [delegate_ attachToSessionWithName:name];
++    NSNumber *number = [self selectedSessionNumber];
++    if (number) {
++        [delegate_ attachToSessionWithNumber:number.intValue];
+     }
+ }
+ 
+ - (IBAction)detach:(id)sender {
+-    NSString *name = [self selectedSessionName];
+-    if (name) {
++    NSNumber *number = [self selectedSessionNumber];
++    if (number) {
+         [delegate_ detach];
+     }
+ }
+@@ -105,16 +108,16 @@
+     objectValueForTableColumn:(NSTableColumn *)aTableColumn
+             row:(NSInteger)rowIndex
+ {
+-    NSString *name = [model_ objectAtIndex:rowIndex];
++    iTermTmuxSessionObject *sessionObject = [model_ objectAtIndex:rowIndex];
+     if (aTableColumn == checkColumn_) {
+-        if ([[delegate_ nameOfAttachedSession] isEqualToString:name]) {
++        if ([[delegate_ numberOfAttachedSession] isEqual:@(sessionObject.number)]) {
+             return @"✓";
+         } else {
+             return @"";
+         }
+     } else {
+         if (rowIndex < model_.count) {
+-            return name;
++            return sessionObject.name;
+         } else {
+             return nil;
+         }
+@@ -126,8 +129,8 @@
+    forTableColumn:(NSTableColumn *)aTableColumn
+               row:(NSInteger)rowIndex
+ {
+-    [delegate_ renameSessionWithName:[model_ objectAtIndex:rowIndex]
+-                              toName:(NSString *)anObject];
++    [delegate_ renameSessionWithNumber:[model_ objectAtIndex:rowIndex].number
++                                toName:(NSString *)anObject];
+ }
+ 
+ #pragma mark NSTableViewDataSource
+@@ -141,14 +144,14 @@
+ - (void)tableViewSelectionDidChange:(NSNotification *)aNotification
+ {
+     [self updateEnabledStateOfButtons];
+-    [delegate_ selectedSessionChangedTo:[self selectedSessionName]];
++    [delegate_ selectedSessionDidChange];
+ }
+ 
+-- (NSString *)selectedSessionName
++- (NSNumber *)selectedSessionNumber
+ {
+     int i = [tableView_ selectedRow];
+     if (i >= 0 && i < model_.count) {
+-        return [model_ objectAtIndex:i];
++        return @([model_ objectAtIndex:i].number);
+     } else {
+         return nil;
+     }
+@@ -160,14 +163,14 @@
+     dropOperation:(NSTableViewDropOperation)operation {
+     NSPasteboard *pb = [info draggingPasteboard];
+     NSArray* pair = [pb propertyListForType:kWindowPasteboardType];
+-    NSString *sessionName = [pair objectAtIndex:0];
++    NSNumber *sessionNumber = [pair objectAtIndex:0];
+     NSArray *draggedItems = [pair objectAtIndex:1];
+-    NSString *targetSession = [model_ objectAtIndex:row];
++    int targetSessionNumber = [model_ objectAtIndex:row].number;
+     for (NSArray *tuple in draggedItems) {
+         NSNumber *windowId = [tuple objectAtIndex:1];
+         [delegate_ linkWindowId:[windowId intValue]
+-                      inSession:sessionName
+-                      toSession:targetSession];
++                inSessionNumber:sessionNumber.intValue
++                toSessionNumber:targetSessionNumber];
+     }
+     return YES;
+ }
+@@ -200,7 +203,7 @@
+ {
+     int n = 0;
+     NSString *candidate = [self nameForNewSessionWithNumber:n];
+-    while ([model_ indexOfObject:candidate] != NSNotFound) {
++    while ([[model_ valueForKey:@"name"] indexOfObject:candidate] != NSNotFound) {
+         n++;
+         candidate = [self nameForNewSessionWithNumber:n];
+     }
+@@ -214,7 +217,7 @@
+         [detachButton_ setEnabled:NO];
+         [removeButton_ setEnabled:NO];
+     } else {
+-        BOOL isAttachedSession = [[delegate_ nameOfAttachedSession] isEqualToString:[self selectedSessionName]];
++        BOOL isAttachedSession = [[delegate_ numberOfAttachedSession] isEqual:[self selectedSessionNumber]];
+         [attachButton_ setEnabled:!isAttachedSession];
+         [detachButton_ setEnabled:isAttachedSession];
+         [removeButton_ setEnabled:YES];
+--- a/sources/TmuxWindowsTable.h
++++ b/sources/TmuxWindowsTable.h
+@@ -22,7 +22,7 @@
+ - (BOOL)haveSelectedSession;
+ - (BOOL)currentSessionSelected;
+ - (BOOL)haveOpenWindowWithId:(int)windowId;
+-- (NSString *)selectedSessionName;
++- (NSNumber *)selectedSessionNumber;
+ - (void)tmuxWindowsTableDidSelectWindowWithId:(int)windowId;
+ 
+ @end
+--- a/sources/TmuxWindowsTable.m
++++ b/sources/TmuxWindowsTable.m
+@@ -200,7 +200,7 @@
+     NSArray* selectedItems = [[self filteredModel] objectsAtIndexes:rowIndexes];
+     [pboard declareTypes:[NSArray arrayWithObject:kWindowPasteboardType] owner:self];
+     [pboard setPropertyList:[NSArray arrayWithObjects:
+-                             [delegate_ selectedSessionName],
++                             [delegate_ selectedSessionNumber],
+                              selectedItems,
+                              nil]
+                     forType:kWindowPasteboardType];
+--- a/sources/PTYSession.m
++++ b/sources/PTYSession.m
+@@ -3731,7 +3731,7 @@
+         [theGuid isEqualToString:_profile[KEY_GUID]]) {
+         Profile *profile = [[ProfileModel sessionsInstance] bookmarkWithGuid:theGuid];
+         [_tmuxController renameWindowWithId:_delegate.tmuxWindow
+-                                  inSession:nil
++                            inSessionNumber:nil
+                                      toName:profile[KEY_NAME]];
+         _tmuxTitleOutOfSync = NO;
+     }
