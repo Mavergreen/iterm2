@@ -1,0 +1,42 @@
+image_decoder: run it by its real path.
+
+image_decoder runs under sandbox-exec, whose profile allows running
+only image_decoder's literal path, and the sandbox checks the path with
+every symlink resolved. An app launched by a path with a symlink in it
+therefore could not decode a single inline image: a build under $TMPDIR
+(/var/folders -> /private/var/folders), say, or an app in a symlinked
+folder. The executable's path is now resolved with realpath(3) before
+it fills the profile and is run.
+
+--- a/sources/iTermImageDecoderDriver.m
++++ b/sources/iTermImageDecoderDriver.m
+@@ -6,6 +6,7 @@
+ //
+ //
+ #import "iTermImageDecoderDriver.h"
++#include <stdlib.h>
+ 
+ #import "DebugLogging.h"
+ #import "NSImage+iTerm.h"
+@@ -106,7 +107,20 @@
+ @implementation iTermImageDecoderDriver
+ 
+ - (NSString *)executable {
+-    return [[NSBundle mainBundle] pathForResource:@"image_decoder" ofType:nil];
++    // The sandbox allows running only this literal path, and it checks the path with every symlink
++    // resolved. realpath(3), not -stringByResolvingSymlinksInPath, which strips /private back off.
++    NSString *path = [[NSBundle mainBundle] pathForResource:@"image_decoder" ofType:nil];
++    if (!path) {
++        return nil;
++    }
++    char *resolved = realpath(path.fileSystemRepresentation, NULL);
++    if (!resolved) {
++        return path;
++    }
++    NSString *result = [[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved
++                                                                                    length:strlen(resolved)];
++    free(resolved);
++    return result;
+ }
+ 
+ - (NSString *)sandbox {
