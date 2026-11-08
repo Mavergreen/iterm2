@@ -49,7 +49,7 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
   || fail "0007 touches other files"
 [ "$(touches 0008-tmux-no-server-values-in-commands.patch)" = 'sources/PTYSession.m sources/TmuxController.h sources/TmuxController.m sources/TmuxDashboardController.m sources/TmuxSessionsTable.h sources/TmuxSessionsTable.m sources/TmuxWindowsTable.h sources/TmuxWindowsTable.m ' ] \
   || fail "0008 touches other files"
-[ "$(touches 0009-no-dns-lookup-on-hover.patch)" = 'sources/PTYTextView.m sources/iTermAdvancedSettingsModel.h sources/iTermAdvancedSettingsModel.m sources/iTermTextDrawingHelper.h sources/iTermTextDrawingHelper.m ' ] \
+[ "$(touches 0009-no-dns-lookup-on-hover.patch)" = 'iTerm2.xcodeproj/project.pbxproj sources/PTYTextView.m sources/iTermAdvancedSettingsModel.h sources/iTermAdvancedSettingsModel.m sources/iTermTextDrawingHelper.h sources/iTermTextDrawingHelper.m ' ] \
   && [ "$(grep -B1 '^+++ /dev/null$' "$REPO_ROOT/patches/0009-no-dns-lookup-on-hover.patch" | sed -n 's|^--- a/||p' | sort | tr '\n' ' ')" = 'sources/AsyncHostLookupController.h sources/AsyncHostLookupController.m ' ] \
   || fail "0009 touches other files"
 [ "$(touches 0010-own-session-socket-prefix.patch)" = 'sources/iTermFileDescriptorSocketPath.c ' ] || fail "0010 touches other files"
@@ -112,6 +112,15 @@ else
 fi
 [ "$(grep -c '^- .*{$' "$REPO_ROOT/product/SUUpdater.m" 2>/dev/null)" = 1 ] \
   || fail "the SUUpdater shim must define exactly one method, checkForUpdates:"
+
+# spec: BUILD.md "Targets" -- the source lists come from the Xcode project, whose exporter refuses a source that
+#       does not exist, so a patch that deletes a file also drops it from the project, as upstream did
+for p in "$REPO_ROOT"/patches/*.patch; do
+  grep -B1 '^+++ /dev/null$' "$p" | sed -n 's|^--- a/sources/||p' | while read -r gone; do
+    ! grep -qF "/* $gone" "$T/src/iTerm2.xcodeproj/project.pbxproj" || echo "$(basename "$p") deletes sources/$gone, which the Xcode project still names"
+  done
+done > "$T/stale"
+[ ! -s "$T/stale" ] || { cat "$T/stale" >&2; fail "the Xcode project names a source a patch deletes"; }
 
 [ "$fails" -eq 0 ] || { echo "dispositions-test: $fails failure(s)" >&2; exit 1; }
 echo "dispositions-test: OK"
