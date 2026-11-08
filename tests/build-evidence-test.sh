@@ -23,7 +23,7 @@ done
 project() { # NAME BODY -- a fixture project whose target iTerm2-app is BODY
   mkdir -p "$T/$1"
   printf 'cmake_minimum_required(VERSION 3.25)\nset(CMAKE_C_COMPILER "%s")\nproject(fixture LANGUAGES C)\n%s\n' "$CLANG22" "$2" > "$T/$1/CMakeLists.txt"
-  # x86_64 named, as the presets do: on an arm64 host CMake would default to arm64, which the 10.9 SDK lacks.
+  # platform: CMake defaults to the host's arch, arm64 on Apple Silicon, which the 10.9 SDK lacks; name x86_64
   "$CMAKE" -S "$T/$1" -B "$T/$1/b" -DCMAKE_OSX_ARCHITECTURES=x86_64 >"$T/$1.configure" 2>&1 \
     || { cat "$T/$1.configure" >&2; fail "$1: the fixture did not configure"; }
 }
@@ -128,13 +128,19 @@ add_custom_target(iTerm2-app ALL
   DEPENDS iTerm2)"
   record "$1"
 }
-drivers drvpass "$T/ok.c"
-[ "$rc" -eq 0 ] && [ "$(field drvpass build_status)" = PASS ] && [ "$(field drvpass drivers)" = PASS ] \
-  || { cat "$T/drvpass.out" >&2; fail "native build records drivers: passing drivers are not PASS"; }
-drivers drvfail "$T/bad.c"
-[ "$rc" -ne 0 ] && [ "$(field drvfail build_status)" = BLOCKED ] && [ "$(field drvfail drivers)" = FAIL ] \
-  && grep -q 'drivers failed' "$T/drvfail-evidence/findings.json" && grep -q 'driver.drvfail' "$T/drvfail-evidence/build.log" \
-  || fail "native build records drivers: a failing driver did not BLOCK, naming it"
+# platform: the fixture drivers are x86_64, and an Apple Silicon Mac (hw.optional.arm64, which a
+#           translated process also reports) runs them only under Rosetta, which the family does not use
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
+  echo "SKIP: native build records drivers (this host cannot run the x86_64 fixture drivers)"
+else
+  drivers drvpass "$T/ok.c"
+  [ "$rc" -eq 0 ] && [ "$(field drvpass build_status)" = PASS ] && [ "$(field drvpass drivers)" = PASS ] \
+    || { cat "$T/drvpass.out" >&2; fail "native build records drivers: passing drivers are not PASS"; }
+  drivers drvfail "$T/bad.c"
+  [ "$rc" -ne 0 ] && [ "$(field drvfail build_status)" = BLOCKED ] && [ "$(field drvfail drivers)" = FAIL ] \
+    && grep -q 'drivers failed' "$T/drvfail-evidence/findings.json" && grep -q 'driver.drvfail' "$T/drvfail-evidence/build.log" \
+    || fail "native build records drivers: a failing driver did not BLOCK, naming it"
+fi
 drivers drvcross "$T/bad.c" 'set(MAVERICKS_EXPECTED_MODE cross CACHE STRING "")'
 [ "$rc" -eq 0 ] && [ "$(field drvcross build_status)" = PASS ] && [ "$(field drvcross drivers)" = UNMEASURED ] \
   && grep -q '"drivers_reason": "cross build: x86_64 10.9 drivers do not run here"' "$T/drvcross-evidence/findings.json" \
