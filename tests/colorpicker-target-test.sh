@@ -87,7 +87,7 @@ if fixture; then
   grep -q '^ColorPicker OSX_ARCHITECTURES .*NOTFOUND' "$T/b/report.txt" || has ColorPicker OSX_ARCHITECTURES x86_64 \
     || fail "ColorPicker builds another arch"
   grep -q '^DEPLOYMENT 10.9$' "$T/b/report.txt" || fail "the floor is not 10.9"
-  grep -q "^METADATA ColorPicker:foundation-array-generics-v1:$T/sdk$" "$T/b/report.txt" \
+  grep -q "^METADATA ColorPicker:foundation-array-generics-v2;[^:]*:$T/sdk$" "$T/b/report.txt" \
     || fail "ColorPicker does not get the SDK metadata overlay (it uses NSArray generics)"
   grep -q 'mmacosx-version-min\|10\.8' "$T/b/report.txt" && fail "ColorPicker sets its own deployment target"
   has iTerm2Shared LINK_LIBRARIES ColorPicker || fail "iTerm2Shared does not link ColorPicker"

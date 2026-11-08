@@ -97,12 +97,17 @@ if fixture ''; then
   has iTerm2 LINK_LIBRARIES "$SDK/usr/lib/libaprutil-1.dylib" || fail "iTerm2 links the SDK's APR dylib"
   ! grep -q '\.tbd' "$T/b/report.txt" || fail "a .tbd is linked"
   has iTerm2 LINK_OPTIONS -ObjC || fail "iTerm2 links with -ObjC"
+  for k in CLASS METACLASS; do
+    has iTerm2 LINK_OPTIONS "-Wl,-U,_OBJC_${k}_\$_NSTitlebarAccessoryViewController" \
+      || fail "iTerm2 does not allow the 10.10 $k NSTitlebarAccessoryViewController undefined"
+  done
+  hasnt iTerm2Shared LINK_OPTIONS -Wl,-U || fail "a static library gets -U"
   for fw in Growl NMSSH Sparkle; do
     ! grep -q "$fw" "$T/b/report.txt" || fail "$fw is still linked"
   done
-  grep -q "^METADATA .*iTerm2Shared:foundation-array-generics-v1:$SDK" "$T/b/report.txt" \
+  grep -q "^METADATA .*iTerm2Shared:foundation-array-generics-v2;[^:]*:$SDK" "$T/b/report.txt" \
     || fail "iTerm2Shared does not get the SDK metadata overlay"
-  grep -q "^METADATA .*image_decoder:foundation-array-generics-v1:$SDK" "$T/b/report.txt" \
+  grep -q "^METADATA .*image_decoder:foundation-array-generics-v2;[^:]*:$SDK" "$T/b/report.txt" \
     || fail "image_decoder does not get the SDK metadata overlay"
   ! grep -q '^METADATA .*SSKeychain' "$T/b/report.txt" || fail "SSKeychain gets the overlay without opting in"
 else

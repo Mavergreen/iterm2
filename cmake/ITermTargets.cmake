@@ -25,6 +25,9 @@
 #   SDK_LIBS       SDK dylibs linked as <SDK>/usr/lib/lib<name>.dylib -- the pinned SDK's own dylib,
 #                  never Xcode's later .tbd reference (libaprutil-1.tbd in the project)
 #   LINK_OPTIONS   OTHER_LDFLAGS that are not libraries
+#   WEAK_CLASSES   SDK classes newer than 10.9 that a source subclasses: the link allows their class and
+#                  metaclass symbols undefined. The 10.9 frameworks do not export them, and the Objective-C
+#                  runtime leaves a subclass of a missing class unrealized, so each use must be guarded.
 #   DEPENDS        targets built first (Xcode target dependencies that are not links)
 #   METADATA       ON | OFF: the Recaulk SDK-metadata overlay for this target's Objective-C
 #   PRODUCT_SOURCES this product's own sources, relative to PRODUCT_DIR (product/SUUpdater.m, product/iTermFamilyVersion.m)
@@ -44,6 +47,7 @@ set(ITERM_ROW_iTerm2
   LINK iTerm2Shared
   FRAMEWORKS OpenDirectory Security ScriptingBridge AppKit Carbon Quartz
   SDK_LIBS aprutil-1 icucore ncurses  LINK_OPTIONS -ObjC  DEPENDS image_decoder  METADATA ON
+  WEAK_CLASSES NSTitlebarAccessoryViewController
   PRODUCT_SOURCES SUUpdater.m iTermFamilyVersion.m)
 set(ITERM_ROW_iTerm2Shared
   KIND static  EXPORT_PREFIX ITERM2_SHARED  ARC OFF  PREFIX_HEADER sources/iTerm2.pch
@@ -77,7 +81,7 @@ function(iterm_add_targets)
   set(prefixes "")
   foreach(t IN LISTS ITERM_TARGETS)
     cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;METADATA;UPDATER_ID"
-                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
+                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
     if(R_UNPARSED_ARGUMENTS)
       message(FATAL_ERROR "iterm_add_targets: ${t}'s row has settings this build does not apply: ${R_UNPARSED_ARGUMENTS}")
     endif()
@@ -99,7 +103,7 @@ function(iterm_add_targets)
 
   foreach(t IN LISTS ITERM_TARGETS)
     cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;METADATA;UPDATER_ID"
-                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
+                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
     set(P "${R_EXPORT_PREFIX}")
     if(NOT ${P}_SOURCES)
       message(FATAL_ERROR "iterm_add_targets: ${A_SOURCES_FILE} lists no ${P}_SOURCES for ${t}")
@@ -164,6 +168,9 @@ function(iterm_add_targets)
     if(R_LINK_OPTIONS)
       target_link_options(${t} PRIVATE ${R_LINK_OPTIONS})
     endif()
+    foreach(c IN LISTS R_WEAK_CLASSES)
+      target_link_options(${t} PRIVATE "-Wl,-U,_OBJC_CLASS_\$_${c}" "-Wl,-U,_OBJC_METACLASS_\$_${c}")
+    endforeach()
     foreach(d IN LISTS R_DEPENDS)
       add_dependencies(${t} ${d})
     endforeach()

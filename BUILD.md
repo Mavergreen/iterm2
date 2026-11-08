@@ -19,9 +19,9 @@ Configure receives `inputs.cmake` as `ITERM_INPUTS_FILE` (the presets set it). `
 
 shipyard's `mavericks_export_xcode_sources` lists each target's sources from the pinned `iTerm2.xcodeproj`. The exporter does not carry ARC, prefix headers or the link graph faithfully, so `cmake/ITermTargets.cmake` applies one explicit row per target, copied from that target's Deployment configuration: iTerm2 (the app), iTerm2Shared and SSKeychain (static libraries) and image_decoder (a helper). Unknown row keys and unknown exported variables are refused, never dropped. Core Data models are not compiled: the release's compiled model is used.
 
-The 10.9 SDK lacks declarations the sources use (Objective-C lightweight generics, among others). Recaulk ships them as SDK-metadata recipes; `mavericks_target_sdk_metadata` gives the targets that opt in a VFS overlay of the edited headers, and never changes the SDK. The recipe ids are in `cmake/ITermMetadata.cmake`.
+The 10.9 SDK lacks declarations the sources use (Objective-C lightweight generics, among others). Recaulk ships them as SDK-metadata recipes; `mavericks_target_sdk_metadata` gives the targets that opt in a VFS overlay of the edited headers, and never changes the SDK. The recipe ids are in `cmake/ITermMetadata.cmake`. Recipes declare post-10.9 classes and functions weak. 10.9's frameworks do not export them, so a class the app subclasses (`NSTitlebarAccessoryViewController`) is listed as the row's `WEAK_CLASSES`, and the link allows its class and metaclass symbols undefined; the Objective-C runtime leaves the subclass unrealized on 10.9, and the source never instantiates it (every use is inside `#if ENABLE_SHORTCUT_ACCESSORY`, which nothing defines). INGREDIENTS.md declares this deviation. Recaulk back-fills `LSCopyDefaultApplicationURLForURL` itself. The list belongs in the recipes, with shipyard's overlay passing it to the link; until then the product keeps it.
 
-`patches/0001` makes image_decoder's two casts to CF types `__bridge`, so clang22 accepts them under ARC.
+`patches/0001` makes image_decoder's two casts to CF types `__bridge`, so clang22 accepts them under ARC. `patches/0005` declares `kTerminalFileShouldStopNotification` `extern` in `TerminalFile.h`, which defined it in every importer.
 
 ## Dependency dispositions
 

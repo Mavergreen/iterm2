@@ -1,0 +1,18 @@
+TerminalFile.h: declare kTerminalFileShouldStopNotification extern.
+
+The header carried a tentative definition, so PTYSession.m and
+TerminalFile.m each defined the constant. The project builds with
+GCC_NO_COMMON_BLOCKS = YES, and clang22's linker refuses the duplicate.
+TerminalFile.m keeps the one definition.
+
+--- a/sources/TerminalFile.h
++++ b/sources/TerminalFile.h
+@@ -9,7 +9,7 @@
+ #import "TransferrableFile.h"
+ 
+ // Posted when the transfer wants to stop.
+-NSString *const kTerminalFileShouldStopNotification;
++extern NSString *const kTerminalFileShouldStopNotification;
+ 
+ // A file downloaded from the terminal via an escape code.
+ @interface TerminalFile : TransferrableFile
