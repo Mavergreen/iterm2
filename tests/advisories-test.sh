@@ -70,6 +70,14 @@ if fixed CVE-2023-46300; then
     | grep -q '^ *\[_tmuxController sendControlC\];$' \
     || fail "CVE-2023-46300: Control-C is not the first thing sent when tmux integration starts"
 fi
+if fixed CVE-2015-9231; then
+  [ ! -e "$T/src/sources/AsyncHostLookupController.m" ] && [ ! -e "$T/src/sources/AsyncHostLookupController.h" ] \
+    || fail "CVE-2015-9231: AsyncHostLookupController is still in the source"
+  left=$(grep -lE 'AsyncHostLookupController|getaddrinfo|CFHost|gethostbyname|performDNSLookups|haveUnderlinedHostname' \
+           "$T/src/sources/PTYTextView.m" "$T/src/sources/iTermTextDrawingHelper.h" "$T/src/sources/iTermTextDrawingHelper.m" \
+           "$T/src/sources/iTermAdvancedSettingsModel.h" "$T/src/sources/iTermAdvancedSettingsModel.m" 2>/dev/null || :)
+  [ -z "$left" ] || fail "CVE-2015-9231: the text under the pointer can still be looked up over DNS ($left)"
+fi
 
 cp "$L" "$T/ledger.tsv"
 printf 'TEST-REARM\t9.9\tthe tmux gateway\tabsent\tTmuxGateway\t-\n' >> "$T/ledger.tsv"

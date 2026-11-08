@@ -23,6 +23,7 @@ mkdir -p "$T/product"; : > "$T/product/SUUpdater.m"; : > "$T/product/iTermFamily
 : > "$S/sources/iTerm2.pch"; : > "$S/ThirdParty/SSKeychain/SSKeychain-Prefix.pch"
 for l in aprutil-1 icucore ncurses; do : > "$SDK/usr/lib/lib$l.dylib"; done
 : > "$SDK/usr/lib/libaprutil-1.tbd"
+mkdir -p "$T/patches"
 cat > "$T/sources.cmake" <<'EOF'
 set(ITERM2_SOURCES [[sources/main.m]] [[sources/iTermApplication.m]])
 set(ITERM2_SHARED_SOURCES [[sources/Shared.m]] [[sources/vt100.c]])
@@ -48,7 +49,7 @@ $1
 iterm_add_targets(SOURCES_FILE "$T/sources.cmake" SOURCE_DIR "$S" SDK "$SDK"
                   RECIPES "$T/recipes.json" METADATA_DIR "\${CMAKE_BINARY_DIR}/sdk-metadata"
                   UPDATER_BUNDLE_ID dev.example.iterm2.updater RELEASES_URL https://example.invalid/iterm2/releases
-                  PRODUCT_DIR "$T/product")
+                  PRODUCT_DIR "$T/product" PATCH_DIR "$T/patches")
 set(r "")
 foreach(t iTerm2 iTerm2Shared SSKeychain image_decoder)
   foreach(p TYPE SOURCES COMPILE_OPTIONS INCLUDE_DIRECTORIES LINK_LIBRARIES LINK_OPTIONS MANUALLY_ADDED_DEPENDENCIES COMPILE_DEFINITIONS)
@@ -176,6 +177,25 @@ if [ -n "${CLANG22:-}" ]; then
 else
   fail "no installed clang22 or clang22-cross to test the accepted compiler"
 fi
+
+# spec: BUILD.md "Targets" -- a source the Xcode export lists but a patch deletes is dropped; any other missing
+#       source is refused by name, never silently dropped
+: > "$SDK/usr/lib/libaprutil-1.dylib"
+cp "$T/sources.cmake" "$T/sources.keep"
+sed 's|^set(ITERM2_SHARED_SOURCES \[\[sources/Shared.m\]\]|set(ITERM2_SHARED_SOURCES [[sources/Shared.m]] [[sources/Gone.m]]|' "$T/sources.keep" > "$T/sources.cmake"
+printf -- '--- a/sources/Gone.m\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\n' > "$T/patches/0099-delete-gone.patch"
+if fixture ''; then
+  hasnt iTerm2Shared SOURCES Gone.m || fail "a deleted source is dropped, an unknown missing source is refused (Gone.m is still a source)"
+else
+  cat "$T/log" >&2; fail "a deleted source is dropped, an unknown missing source is refused (a patch-deleted source was refused)"
+fi
+sed 's|^set(ITERM2_SHARED_SOURCES \[\[sources/Shared.m\]\]|set(ITERM2_SHARED_SOURCES [[sources/Shared.m]] [[sources/Lost.m]]|' "$T/sources.keep" > "$T/sources.cmake"
+if fixture ''; then
+  fail "a deleted source is dropped, an unknown missing source is refused (Lost.m was accepted)"
+else
+  grep -q 'sources/Lost.m' "$T/log" || fail "a deleted source is dropped, an unknown missing source is refused (the refusal does not name Lost.m)"
+fi
+rm "$T/patches/0099-delete-gone.patch"; cp "$T/sources.keep" "$T/sources.cmake"
 
 [ "$fails" -eq 0 ] || { echo "target-settings-test: $fails failure(s)" >&2; exit 1; }
 echo "target-settings-test: OK"

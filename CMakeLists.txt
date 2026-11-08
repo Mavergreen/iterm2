@@ -57,7 +57,8 @@ iterm_add_targets(
   METADATA_DIR "${CMAKE_BINARY_DIR}/sdk-metadata"
   UPDATER_BUNDLE_ID "${ITERM_UPDATER_BUNDLE_ID}"
   RELEASES_URL "${ITERM_RELEASES_URL}"
-  PRODUCT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/product")
+  PRODUCT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/product"
+  PATCH_DIR "${CMAKE_CURRENT_SOURCE_DIR}/patches")
 iterm_link_colorpicker(iTerm2Shared iTerm2)
 
 # spec: BUILD.md "Build evidence" -- driver tests check behavior against the built sources; record-build.sh runs

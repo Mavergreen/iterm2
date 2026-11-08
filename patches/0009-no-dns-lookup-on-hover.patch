@@ -1,0 +1,336 @@
+No DNS lookups of the text under the pointer (CVE-2015-9231).
+
+Backported from upstream 33ccaf61e3 (3.1.1), "Fist swipe at removing DNS
+code", with e4eb106352, adapted to 3.0.15. With Command held, the host
+of a URL under the pointer was resolved over DNS to decide how to
+underline it. That sent whatever text was there, passwords included, to
+the network in clear. AsyncHostLookupController is deleted, along with
+every use of it, the drawing helper's haveUnderlinedHostname, and the
+performDNSLookups setting. A URL under the pointer is now always drawn
+as a link.
+
+--- a/sources/PTYTextView.m
++++ b/sources/PTYTextView.m
+@@ -1,6 +1,5 @@
+ #import "PTYTextView.h"
+ 
+-#import "AsyncHostLookupController.h"
+ #import "CharacterRun.h"
+ #import "CharacterRunInline.h"
+ #import "charmaps.h"
+@@ -94,10 +93,6 @@
+ static const NSUInteger kRectangularSelectionModifiers = (NSCommandKeyMask | NSAlternateKeyMask);
+ static const NSUInteger kRectangularSelectionModifierMask = (kRectangularSelectionModifiers | NSControlKeyMask);
+ 
+-// Notifications posted when hostname lookups finish. Notifications are used to
+-// avoid dangling references.
+-static NSString *const kHostnameLookupFailed = @"kHostnameLookupFailed";
+-static NSString *const kHostnameLookupSucceeded = @"kHostnameLookupSucceeded";
+ static PTYTextView *gCurrentKeyEventTextView;  // See comment in -keyDown:
+ 
+ // Minimum distance that the mouse must move before a cmd+drag will be
+@@ -117,9 +112,6 @@
+     NSMenuDelegate,
+     NSPopoverDelegate>
+ 
+-// Set the hostname this view is currently waiting for AsyncHostLookupController to finish looking
+-// up.
+-@property(nonatomic, copy) NSString *currentUnderlineHostname;
+ @property(nonatomic, retain) iTermSelection *selection;
+ @property(nonatomic, retain) iTermSemanticHistoryController *semanticHistoryController;
+ @property(nonatomic, retain) iTermFindCursorView *findCursorView;
+@@ -311,14 +303,6 @@
+                                                      name:@"iTermFlagsChanged"
+                                                    object:nil];
+         [[NSNotificationCenter defaultCenter] addObserver:self
+-                                                 selector:@selector(hostnameLookupFailed:)
+-                                                     name:kHostnameLookupFailed
+-                                                   object:nil];
+-        [[NSNotificationCenter defaultCenter] addObserver:self
+-                                                 selector:@selector(hostnameLookupSucceeded:)
+-                                                     name:kHostnameLookupSucceeded
+-                                                   object:nil];
+-        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                  selector:@selector(imageDidLoad:)
+                                                      name:iTermImageDidLoad
+                                                    object:nil];
+@@ -400,10 +384,6 @@
+     [threeFingerTapGestureRecognizer_ disconnectTarget];
+     [threeFingerTapGestureRecognizer_ release];
+ 
+-    if (self.currentUnderlineHostname) {
+-        [[AsyncHostLookupController sharedInstance] cancelRequestForHostname:self.currentUnderlineHostname];
+-    }
+-    [_currentUnderlineHostname release];
+     _indicatorsHelper.delegate = nil;
+     [_indicatorsHelper release];
+     _selectionScrollHelper.delegate = nil;
+@@ -1102,7 +1082,6 @@
+     // Draw the cursor filled in when we're inactive if there's a popup open or key focus was stolen.
+     _drawingHelper.shouldDrawFilledInCursor = ([self.delegate textViewShouldDrawFilledInCursor] || _keyFocusStolenCount);
+     _drawingHelper.isFrontTextView = (self == [[iTermController sharedInstance] frontTextView]);
+-    _drawingHelper.haveUnderlinedHostname = (self.currentUnderlineHostname != nil);
+     _drawingHelper.transparencyAlpha = [self transparencyAlpha];
+     _drawingHelper.now = [NSDate timeIntervalSinceReferenceDate];
+     _drawingHelper.drawMarkIndicators = [_delegate textViewShouldShowMarkIndicators];
+@@ -1700,10 +1679,6 @@
+     }
+     _drawingHelper.underlineRange =
+         VT100GridWindowedRangeMake(VT100GridCoordRangeMake(-1, -1, -1, -1), 0, 0);
+-    if (self.currentUnderlineHostname) {
+-        [[AsyncHostLookupController sharedInstance] cancelRequestForHostname:self.currentUnderlineHostname];
+-    }
+-    self.currentUnderlineHostname = nil;
+     [self setNeedsDisplay:YES];  // It would be better to just display the underlined/formerly underlined area.
+ }
+ 
+@@ -1733,33 +1708,6 @@
+                                     respectingHardNewlines:![iTermAdvancedSettingsModel ignoreHardNewlinesInURLs]];
+             if (action) {
+                 _drawingHelper.underlineRange = action.range;
+-
+-                if (action.actionType == kURLActionOpenURL) {
+-                    NSURL *url = [NSURL URLWithUserSuppliedString:action.string];
+-                    if (![url.host isEqualToString:self.currentUnderlineHostname]) {
+-                        if (self.currentUnderlineHostname) {
+-                            [[AsyncHostLookupController sharedInstance] cancelRequestForHostname:self.currentUnderlineHostname];
+-                        }
+-                        if (url && url.host) {
+-                            self.currentUnderlineHostname = url.host;
+-                            [[AsyncHostLookupController sharedInstance] getAddressForHost:url.host
+-                                                                               completion:^(BOOL ok, NSString *hostname) {
+-                                                                                   if (!ok) {
+-                                                                                       [[NSNotificationCenter defaultCenter] postNotificationName:kHostnameLookupFailed
+-                                                                                                                                           object:hostname];
+-                                                                                   } else {
+-                                                                                       [[NSNotificationCenter defaultCenter] postNotificationName:kHostnameLookupSucceeded
+-                                                                                                                                           object:hostname];
+-                                                                                   }
+-                                                                               }];
+-                        }
+-                    }
+-                } else {
+-                    if (self.currentUnderlineHostname) {
+-                        [[AsyncHostLookupController sharedInstance] cancelRequestForHostname:self.currentUnderlineHostname];
+-                    }
+-                    self.currentUnderlineHostname = nil;
+-                }
+             } else {
+                 [self removeUnderline];
+                 return;
+@@ -6126,23 +6074,6 @@
+     return nil;
+ }
+ 
+-- (void)hostnameLookupFailed:(NSNotification *)notification {
+-    if ([[notification object] isEqualToString:self.currentUnderlineHostname]) {
+-        self.currentUnderlineHostname = nil;
+-        [self removeUnderline];
+-        _drawingHelper.underlineRange =
+-            VT100GridWindowedRangeMake(VT100GridCoordRangeMake(-1, -1, -1, -1), 0, 0);
+-        [self setNeedsDisplay:YES];
+-    }
+-}
+-
+-- (void)hostnameLookupSucceeded:(NSNotification *)notification {
+-    if ([[notification object] isEqualToString:self.currentUnderlineHostname]) {
+-        self.currentUnderlineHostname = nil;
+-        [self setNeedsDisplay:YES];
+-    }
+-}
+-
+ - (void)imageDidLoad:(NSNotification *)notification {
+     if ([self imageIsVisible:notification.object]) {
+         [self setNeedsDisplay:YES];
+--- a/sources/iTermAdvancedSettingsModel.h
++++ b/sources/iTermAdvancedSettingsModel.h
+@@ -156,6 +156,5 @@
+ + (BOOL)useColorfgbgFallback;
+ + (BOOL)promptForPasteWhenNotAtPrompt;
+ + (void)setPromptForPasteWhenNotAtPrompt:(BOOL)value;
+-+ (BOOL)performDNSLookups;
+ 
+ @end
+--- a/sources/iTermAdvancedSettingsModel.m
++++ b/sources/iTermAdvancedSettingsModel.m
+@@ -133,7 +133,6 @@
+ DEFINE_STRING(URLCharacterSet, @".?\\/:;%=&_-,+~#@!*'(（)）|[]", @"Semantic History: Non-alphanumeric characters considered part of a URL for Semantic History.\nLetters and numbers are always considered part of the URL. These non-alphanumeric characters are used in addition for the purposes of figuring out where a URL begins and ends.");
+ DEFINE_INT(maxSemanticHistoryPrefixOrSuffix, 2000, @"Semantic History: Maximum number of bytes of text before and after click location to take into account.\nThis also limits the size of the \\3 and \\4 substitutions.");
+ DEFINE_STRING(pathsToIgnore, @"", @"Semantic History: Paths to ignore for Semantic History.\nSeparate paths with a comma. Any file under one of these paths will not be openable with Semantic History.");
+-DEFINE_BOOL(performDNSLookups, YES, @"Semantic History: Perform DNS lookups to check if URLs are valid?\nWhen enabled, the name under the mouse will be resolved with DNS to determine if it is a clickable link.");
+ 
+ #pragma mark - Debugging
+ DEFINE_BOOL(startDebugLoggingAutomatically, NO, @"Debugging: Start debug logging automatically when iTerm2 is launched.");
+--- a/sources/iTermTextDrawingHelper.h
++++ b/sources/iTermTextDrawingHelper.h
+@@ -161,9 +161,6 @@
+ // TODO: This might be the same as textViewIsActiveSession.
+ @property(nonatomic, assign) BOOL isFrontTextView;
+ 
+-// Is there an underlined hostname?
+-@property(nonatomic, assign) BOOL haveUnderlinedHostname;
+-
+ // Alpha value to use for cursor.
+ @property(nonatomic, assign) double transparencyAlpha;
+ 
+--- a/sources/iTermTextDrawingHelper.m
++++ b/sources/iTermTextDrawingHelper.m
+@@ -1610,7 +1610,7 @@
+             if (theLine[i].image) {
+                 thisCharString = @"I";
+             }
+-            if (inUnderlinedRange && !_haveUnderlinedHostname) {
++            if (inUnderlinedRange) {
+                 attrs.color = [colorMap colorForKey:kColorMapLink];
+             }
+             if (!currentRun) {
+--- a/sources/AsyncHostLookupController.h
++++ /dev/null
+@@ -1,25 +0,0 @@
+-//
+-//  AsyncHostLookupController.h
+-//  iTerm
+-//
+-//  Created by George Nachman on 12/14/13.
+-//
+-//
+-
+-#import <Foundation/Foundation.h>
+-
+-// Verify whether host names are valid. Runs in a separate thread and provides asynchronous results.
+-// Caches very aggressively.
+-@interface AsyncHostLookupController : NSObject
+-
+-+ (instancetype)sharedInstance;
+-
+-// Calls back to completion indicating whether |host| is an extant hostname. The BOOL is YES if the
+-// hostname resolves. |host| is passed as the second argument to completion. Does not block.
+-- (void)getAddressForHost:(NSString *)host
+-               completion:(void (^)(BOOL, NSString*))completion;
+-
+-// Cancels the lookup for |hostname|.
+-- (void)cancelRequestForHostname:(NSString *)hostname;
+-
+-@end
+--- a/sources/AsyncHostLookupController.m
++++ /dev/null
+@@ -1,119 +0,0 @@
+-//
+-//  AsyncHostLookupController.m
+-//  iTerm
+-//
+-//  Created by George Nachman on 12/14/13.
+-//
+-//
+-
+-#import "AsyncHostLookupController.h"
+-#import "DebugLogging.h"
+-#import "iTermAdvancedSettingsModel.h"
+-#include <netdb.h>
+-
+-@implementation AsyncHostLookupController {
+-    // Created at initialization and used to perform blocking gethostbyname calls.
+-    dispatch_queue_t _queue;
+-
+-    // Set of hostnames waiting to be looked up. If a hostname is removed from
+-    // this set then it won't be looked up when its turn comes around.
+-    NSMutableSet *_pending;
+-
+-    // Maps hostname -> @YES or @NO, indicating if it resolved.
+-    NSMutableDictionary *_cache;
+-}
+-
+-+ (instancetype)sharedInstance {
+-    static AsyncHostLookupController *instance;
+-    static dispatch_once_t once;
+-    dispatch_once(&once, ^{
+-        instance = [[self alloc] init];
+-    });
+-    return instance;
+-}
+-
+-- (instancetype)init {
+-    self = [super init];
+-    if (self) {
+-        _queue = dispatch_queue_create("AsyncHostLookupControllerQueue", NULL);
+-        _pending = [[NSMutableSet alloc] init];
+-        _cache = [[NSMutableDictionary alloc] init];
+-    }
+-    return self;
+-}
+-
+-- (void)dealloc {
+-    // The logic for cleaning up the dispatch queue isn't written, so just make sure the singleton
+-    // never gets dealloced.
+-    assert(false);
+-    [super dealloc];
+-}
+-
+-- (void)getAddressForHost:(NSString *)hostname
+-               completion:(void (^)(BOOL, NSString *))completion {
+-    if (![iTermAdvancedSettingsModel performDNSLookups]) {
+-        completion(YES, hostname);
+-        return;
+-    }
+-
+-    NSTimeInterval start = [NSDate timeIntervalSinceReferenceDate];
+-    @synchronized(self) {
+-        if ([_pending containsObject:hostname]) {
+-            DLog(@"Already pending %@", hostname);
+-            return;
+-        }
+-        NSNumber *okNumber = _cache[hostname];
+-        if (okNumber) {
+-            completion([okNumber boolValue], hostname);
+-            return;
+-        }
+-        [_pending addObject:hostname];
+-    }
+-    dispatch_async(_queue, ^() {
+-        @synchronized(self) {
+-            if (![_pending containsObject:hostname]) {
+-                DLog(@"Abort nslookup for %@", hostname);
+-                return;
+-            }
+-        }
+-
+-        BOOL shouldCache;
+-        BOOL ok = [self hostnameHasAddress:[hostname UTF8String] shouldCache:&shouldCache];
+-        if (shouldCache) {
+-            @synchronized(self) {
+-                _cache[hostname] = @(ok);
+-            }
+-        }
+-        dispatch_async(dispatch_get_main_queue(), ^() {
+-            @synchronized(self) {
+-                if (![_pending containsObject:hostname]) {
+-                    DLog(@"Finished nslookup but don't call block for %@", hostname);
+-                    return;
+-                }
+-                [_pending removeObject:hostname];
+-            }
+-            DLog(@"Host %@: %@", hostname, ok ? @"OK" : @"Unknown");
+-            completion(ok, hostname);
+-        });
+-    });
+-    DLog(@"Blocked main thread for %f sec", [NSDate timeIntervalSinceReferenceDate] - start);
+-}
+-
+-- (void)cancelRequestForHostname:(NSString *)hostname {
+-    @synchronized(self) {
+-        [_pending removeObject:hostname];
+-    }
+-}
+-
+-- (BOOL)hostnameHasAddress:(const char *)hostname shouldCache:(BOOL *)shouldCache {
+-    struct addrinfo *servinfo;
+-    int status = getaddrinfo(hostname, NULL, NULL, &servinfo);
+-    if (status == 0) {
+-        freeaddrinfo(servinfo);
+-    }
+-    // Don't cache temporary failures
+-    *shouldCache = (status != EAI_AGAIN);
+-    return status == 0;
+-}
+-
+-@end
