@@ -45,7 +45,7 @@ add_library(iTerm2Shared STATIC "$S/ColorPicker/CPKColorWell.m")
 add_executable(iTerm2 "$S/ColorPicker/CPKPopover.m")
 iterm_link_colorpicker(iTerm2Shared iTerm2)
 set(r "")
-foreach(p RESOURCE TYPE FRAMEWORK FRAMEWORK_VERSION INSTALL_NAME_DIR OUTPUT_NAME SOURCES PUBLIC_HEADER
+foreach(p INTERFACE_INCLUDE_DIRECTORIES RESOURCE TYPE FRAMEWORK FRAMEWORK_VERSION INSTALL_NAME_DIR OUTPUT_NAME SOURCES PUBLIC_HEADER
           COMPILE_OPTIONS OSX_ARCHITECTURES MACOSX_FRAMEWORK_IDENTIFIER LINK_LIBRARIES)
   get_target_property(v ColorPicker \${p})
   string(APPEND r "ColorPicker \${p} \${v}\n")
@@ -79,6 +79,8 @@ if fixture; then
     || fail "ColorPicker's public headers"
   has ColorPicker RESOURCE "$S/ColorPicker/Add.png;$S/ColorPicker/Add@2x.png;$S/ColorPicker/colors.txt" \
     || fail "ColorPicker's images and colors.txt are not its framework resources"
+  has ColorPicker INTERFACE_INCLUDE_DIRECTORIES "$S" \
+    || fail "ColorPicker does not give its linkers <ColorPicker/...> headers from its source"
   has ColorPicker COMPILE_OPTIONS -fobjc-arc || fail "ColorPicker lacks ARC"
   has ColorPicker MACOSX_FRAMEWORK_IDENTIFIER com.googlecode.iterm2.ColorPicker || fail "ColorPicker's bundle id"
   has ColorPicker LINK_LIBRARIES '-framework AppKit' || fail "ColorPicker links AppKit"

@@ -50,6 +50,12 @@ The 29 nibs and the compiled Core Data model come from the release ZIP (`resourc
 
 `build/record-build.sh BUILD_DIR EVIDENCE_DIR` builds the app, keeps the whole log and the real exit status, and writes `findings.json`: PASS only for a complete build whose output exists, passes shipyard's compat guard and leaves the checkout unchanged; BLOCKED otherwise. It records the host, mode, compiler and its version, shipyard's version, the declared inputs and the output's inventory. A leg that was not run is recorded with `--absent` as ABSENT, with its reason. Runtime behavior is never measured here: it stays UNMEASURED until a separately authorized acceptance run.
 
+A normal build stops at the first failed target and skips everything that depends on it. `build/sweep.sh BUILD_DIR OUT_DIR` measures every unit anyway: it syntax-checks each entry of `compile_commands.json` (the presets export it) and writes every error to `errors.tsv`. It is a diagnostic, never the verdict. While declaration fixes are iterated, `-DITERM_UNRELEASED_RECIPES=<path>` builds against a Recaulk working tree's recipes; the build records it, and `record-build.sh` reports such a build BLOCKED, naming the recipes, however it builds. The setting stays in the build directory's cache, so a reconfigure that leaves it out still builds against them; `-UITERM_UNRELEASED_RECIPES` returns to the pinned recipes.
+
 ## Security advisories
 
 `SECURITY.md` and `security/advisories.tsv` record every published iTerm2 advisory against the pinned source: fixed by a patch, guarded by a check 3.0.15 already has, absent because 3.0.15 lacks the feature, or pending. `tests/advisories-test.sh` prepares the source and fails, naming the advisory, when an absent feature appears, a guard disappears or a fix's patch is no longer applied, so moving to a newer upstream cannot bring an advisory back unnoticed.
+
+## Building a commit on another host
+
+Take committed state with `git archive`, never a shared work tree, and give each extract its own directory name (`mavergreen-iterm2-<commit>`). The presets name the build directory after the source directory under `$TMPDIR/mm-build` and do not take a caller's build root, so two extracts with the same name would share one; `-B <dir>` on the configure also separates them.

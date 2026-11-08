@@ -5,7 +5,8 @@
   "configurePresets": [
     { "name": "inputs", "hidden": true,
       "cacheVariables": {
-        "ITERM_INPUTS_FILE": "$env{MAVERICKS_BUILD_ROOT}/${sourceDirName}-inputs/inputs.cmake"
+        "ITERM_INPUTS_FILE": "$env{MAVERICKS_BUILD_ROOT}/${sourceDirName}-inputs/inputs.cmake",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       } },
     { "name": "native", "inherits": ["mavericks-native", "inputs"],
       "displayName": "native -- iTerm2 on Mavericks 10.9, with the verified installed clang22" },

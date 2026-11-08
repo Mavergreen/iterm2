@@ -18,6 +18,18 @@ if(NOT IS_ABSOLUTE "${ITERM_INPUTS_FILE}" OR NOT EXISTS "${ITERM_INPUTS_FILE}")
     "with the OUTPUT_ROOT the preset names.")
 endif()
 include("${ITERM_INPUTS_FILE}")
+# spec: BUILD.md "Build evidence" -- ITERM_UNRELEASED_RECIPES tries a Recaulk working tree's recipes while
+#       declaration fixes are iterated; the build records it, and build/record-build.sh never calls it PASS
+if(DEFINED ITERM_UNRELEASED_RECIPES AND NOT "${ITERM_UNRELEASED_RECIPES}" STREQUAL "")
+  if(NOT IS_ABSOLUTE "${ITERM_UNRELEASED_RECIPES}" OR NOT EXISTS "${ITERM_UNRELEASED_RECIPES}")
+    message(FATAL_ERROR "ITERM_UNRELEASED_RECIPES must be an existing absolute path (got '${ITERM_UNRELEASED_RECIPES}').")
+  endif()
+  message(WARNING "using UNRELEASED recipes ${ITERM_UNRELEASED_RECIPES}: this build can never be a release candidate.")
+  set(ITERM_RECAULK_RECIPES "${ITERM_UNRELEASED_RECIPES}")
+  set(ITERM_UNRELEASED_INPUTS ON CACHE BOOL "built with unreleased Recaulk recipes" FORCE)
+else()
+  set(ITERM_UNRELEASED_INPUTS OFF CACHE BOOL "built with unreleased Recaulk recipes" FORCE)
+endif()
 foreach(_iterm_v ITERM_SOURCE_DIR ITERM_RESOURCES_ZIP ITERM_RECAULK_RECIPES ITERM_CLANG22_COMPILER
                  ITERM_DEPENDENCY_MANIFEST)
   if(NOT DEFINED ${_iterm_v} OR NOT IS_ABSOLUTE "${${_iterm_v}}" OR NOT EXISTS "${${_iterm_v}}")

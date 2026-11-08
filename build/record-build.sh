@@ -11,6 +11,7 @@
 #          of OUTPUT (default iTerm2.app, under BUILD_DIR), the compat guard's verdict over every Mach-O
 #          in it (compat PASS, FAIL or UNMEASURED) and runtime, which this never measures: UNMEASURED.
 #          An OUTPUT left by an earlier run is removed before building.
+#          A build configured with ITERM_UNRELEASED_RECIPES is BLOCKED, naming them, however it builds.
 #          PASS needs a zero exit, OUTPUT present, compat PASS and the checkout unchanged by the build.
 #          Exit 0 on PASS; otherwise the build's own nonzero status, or 1. Nothing is copied out of
 #          the build: the evidence is a record, not an artifact.
@@ -106,6 +107,8 @@ if [ -e "$out" ]; then
 fi
 [ "$compat" = PASS ] || [ "$status" = BLOCKED ] || blocked "compat is $compat"
 [ "$before" = "$after" ] || blocked "the build changed the checkout"
+unreleased=$(cache ITERM_UNRELEASED_RECIPES)
+[ "$(cache ITERM_UNRELEASED_INPUTS)" != ON ] || blocked "unreleased recipes: ${unreleased:-unnamed}"
 
 inputs_file=$(cache ITERM_INPUTS_FILE)
 inputs="null"
@@ -129,6 +132,7 @@ cat > "$E/findings.json" <<EOF
   "checkout_before": "$before",
   "checkout_after": "$after",
   "compat": "$compat",
+  "unreleased_recipes": "$(j "${unreleased:-}")",
   "runtime": "UNMEASURED",
   "inputs": $inputs,
   "output": "$(j "$OUTPUT")",

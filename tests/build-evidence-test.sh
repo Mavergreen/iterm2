@@ -90,6 +90,19 @@ grep -q 'no authorized Apple Silicon host' "$T/absent-evidence/findings.json" ||
 [ "$(field absent compat)" = UNMEASURED ] && [ "$(field absent runtime)" = UNMEASURED ] || fail "absent: claims a measurement"
 [ ! -e "$T/absent-evidence/build.log" ] || fail "absent: a build log exists for a leg that did not run"
 
+# spec: BUILD.md "Build evidence" -- a build with unreleased recipes is never a PASS, even when it builds
+project unreleased "set(ITERM_UNRELEASED_INPUTS ON CACHE BOOL \"\")
+set(ITERM_UNRELEASED_RECIPES /work/recaulk/sdk-metadata/recipes.json CACHE FILEPATH \"\")
+add_executable(iTerm2 \"$T/ok.c\")
+add_custom_target(iTerm2-app ALL
+  COMMAND \"\${CMAKE_COMMAND}\" -E make_directory \"\${CMAKE_BINARY_DIR}/iTerm2.app/Contents/MacOS\"
+  COMMAND \"\${CMAKE_COMMAND}\" -E copy \"\$<TARGET_FILE:iTerm2>\" \"\${CMAKE_BINARY_DIR}/iTerm2.app/Contents/MacOS/iTerm2\"
+  DEPENDS iTerm2)"
+record unreleased
+[ "$rc" -ne 0 ] && [ "$(field unreleased build_status)" = BLOCKED ] || fail "unreleased: a build with unreleased recipes was not BLOCKED"
+grep -q 'unreleased recipes: /work/recaulk/sdk-metadata/recipes.json' "$T/unreleased-evidence/findings.json" \
+  || fail "unreleased: the reason does not name the recipes"
+
 project empty "add_custom_target(iTerm2-app ALL COMMAND \"\${CMAKE_COMMAND}\" -E true)"
 mkdir -p "$T/empty/b/iTerm2.app/Contents/MacOS"; cp "$T/ok/b/iTerm2" "$T/empty/b/iTerm2.app/Contents/MacOS/iTerm2"
 record empty

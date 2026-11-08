@@ -149,6 +149,22 @@ if [ -n "${CLANG22:-}" ]; then
   logged "not the pinned clang22 22.1.7" || fail "a clang22 other than the pin was not refused by version"
   GATE_SHA=0123abcd gate "$CLANG22" -DITERM_INPUTS_FILE="$T/g/inputs.cmake" && fail "a short resource SHA-256 was accepted"
   logged "ITERM_RESOURCES_SHA256" || fail "a short resource SHA-256 was not refused by name"
+  gate "$CLANG22" -DITERM_INPUTS_FILE="$T/g/inputs.cmake" -DITERM_UNRELEASED_RECIPES="$T/g/recipes.json" || :
+  logged "UNRELEASED recipes" || fail "unreleased recipes were used without a warning"
+  grep -q '^ITERM_UNRELEASED_INPUTS:BOOL=ON$' "$T/g/b/CMakeCache.txt" 2>/dev/null || fail "unreleased recipes are not recorded in the cache"
+  "$CMAKE" -S "$REPO_ROOT" -B "$T/g/b" >"$T/log" 2>&1 || :
+  grep -q '^ITERM_UNRELEASED_INPUTS:BOOL=ON$' "$T/g/b/CMakeCache.txt" 2>/dev/null \
+    || fail "a reconfigure that leaves out -DITERM_UNRELEASED_RECIPES records the build as released"
+  "$CMAKE" -S "$REPO_ROOT" -B "$T/g/b" -UITERM_UNRELEASED_RECIPES >"$T/log" 2>&1 || :
+  grep -q '^ITERM_UNRELEASED_INPUTS:BOOL=OFF$' "$T/g/b/CMakeCache.txt" 2>/dev/null \
+    || fail "-UITERM_UNRELEASED_RECIPES (BUILD.md's way back to the released recipes) does not clear it"
+  gate "$CLANG22" -DITERM_INPUTS_FILE="$T/g/inputs.cmake" -DITERM_UNRELEASED_RECIPES="$T/g/no-such-recipes.json" \
+    && fail "a missing ITERM_UNRELEASED_RECIPES was accepted"
+  logged "ITERM_UNRELEASED_RECIPES" || fail "a missing ITERM_UNRELEASED_RECIPES was not refused by name"
+  gate "$CLANG22" -DITERM_INPUTS_FILE="$T/g/inputs.cmake" -DITERM_UNRELEASED_RECIPES=relative/recipes.json && fail "a relative ITERM_UNRELEASED_RECIPES was accepted"
+  logged "ITERM_UNRELEASED_RECIPES" || fail "a relative ITERM_UNRELEASED_RECIPES was not refused by name"
+  gate "$CLANG22" -DITERM_INPUTS_FILE="$T/g/inputs.cmake" || :
+  grep -q '^ITERM_UNRELEASED_INPUTS:BOOL=OFF$' "$T/g/b/CMakeCache.txt" 2>/dev/null || fail "released inputs are not recorded as such"
 else
   fail "no installed clang22 or clang22-cross to test the accepted compiler"
 fi

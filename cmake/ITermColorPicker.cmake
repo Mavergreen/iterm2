@@ -73,6 +73,9 @@ function(iterm_add_colorpicker)
     C_STANDARD 99 C_EXTENSIONS ON OBJC_STANDARD 99 OBJC_EXTENSIONS ON)
   target_compile_options(ColorPicker PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
   target_link_libraries(ColorPicker PRIVATE "-framework AppKit")
+  # spec: BUILD.md "Build evidence" -- linkers find <ColorPicker/...> in the source too, so a unit that uses
+  #       ColorPicker compiles (and is swept) even before the framework's Headers are copied
+  target_include_directories(ColorPicker INTERFACE "${A_SOURCE_DIR}")
   mavericks_target_sdk_metadata(TARGET ColorPicker SDK "${A_SDK}" RECIPES "${A_RECIPES}"
                                 IDS ${ITERM_METADATA_IDS} OUTPUT_DIR "${A_METADATA_DIR}")
 endfunction()
