@@ -95,6 +95,9 @@ function(iterm_add_driver name)
   set_target_properties(${t} PROPERTIES OBJC_STANDARD ${R_C_STANDARD} OBJC_EXTENSIONS ON)
   target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "$<TARGET_PROPERTY:iTerm2Shared,INCLUDE_DIRECTORIES>")
   target_compile_options(${t} PRIVATE "$<TARGET_PROPERTY:iTerm2Shared,COMPILE_OPTIONS>")
+  # platform: a message to a method the class does not declare is only a warning in Objective-C; a driver
+  #           that names one is testing nothing, so it does not build
+  target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-Werror=objc-method-access>")
   target_compile_definitions(${t} PRIVATE "$<TARGET_PROPERTY:iTerm2Shared,COMPILE_DEFINITIONS>")
   target_link_libraries(${t} PRIVATE iTerm2Shared)
   _iterm_link_system(${t} "${CMAKE_OSX_SYSROOT}")

@@ -59,6 +59,18 @@ check "$L" > "$T/problems"
 [ ! -s "$T/problems" ] || { sed 's/^/  /' "$T/problems" >&2; fail "the ledger disagrees with the prepared source"; }
 [ "$(tail -n +2 "$L" | awk -F'\t' '$4 == "absent"' | wc -l | tr -d ' ')" -ge 1 ] || fail "no absent row to exercise"
 
+# spec: SECURITY.md -- a fixed row whose patch could still apply while missing its point gets a check of
+#       its own against the prepared source
+fixed() { awk -F'\t' -v id="$1" '$1 == id && $4 == "fixed"' "$L" | grep -q .; }
+first_statement() { # FILE SELECTOR -- the first statement of the method that starts with SELECTOR
+  awk -v sel="$2" 'index($0, sel) == 1 { on = 1; next } on && NF && $1 !~ /^\/\// { print; exit }' "$1"
+}
+if fixed CVE-2023-46300; then
+  first_statement "$T/src/sources/PTYSession.m" '- (void)tmuxInitialCommandDidCompleteSuccessfully {' \
+    | grep -q '^ *\[_tmuxController sendControlC\];$' \
+    || fail "CVE-2023-46300: Control-C is not the first thing sent when tmux integration starts"
+fi
+
 cp "$L" "$T/ledger.tsv"
 printf 'TEST-REARM\t9.9\tthe tmux gateway\tabsent\tTmuxGateway\t-\n' >> "$T/ledger.tsv"
 check "$T/ledger.tsv" | grep -q '^TEST-REARM: its feature is now in the source' || fail "an absent feature that is present does not fail"

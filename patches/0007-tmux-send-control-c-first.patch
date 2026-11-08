@@ -1,0 +1,45 @@
+tmux integration: send Control-C first (CVE-2023-46300).
+
+Backported from upstream 0dce047440 (3.4.20), "Fix for method 1 and 2".
+A command typed at the prompt before integration began would otherwise
+run once tmux control mode starts. The first thing sent is now a
+Control-C, as a phony command whose error is tolerated. 3.0.15 has no
+ping, so sendControlC comes before validateOptions.
+
+--- a/sources/PTYSession.m
++++ b/sources/PTYSession.m
+@@ -4477,6 +4477,7 @@
+ 
+ - (void)tmuxInitialCommandDidCompleteSuccessfully {
+     // This kicks off a chain reaction that leads to windows being opened.
++    [_tmuxController sendControlC];
+     [_tmuxController validateOptions];
+     [_tmuxController checkForUTF8];
+     [_tmuxController guessVersion];
+--- a/sources/TmuxController.h
++++ b/sources/TmuxController.h
+@@ -76,6 +76,7 @@
+ - (BOOL)windowDidResize:(NSWindowController<iTermWindowController> *)term;
+ - (void)fitLayoutToWindows;
+ - (void)validateOptions;
++- (void)sendControlC;
+ 
+ // Issue tmux commands to infer bounds on the version.
+ - (void)guessVersion;
+--- a/sources/TmuxController.m
++++ b/sources/TmuxController.m
+@@ -544,6 +544,14 @@
+     [gateway_ sendCommandList:commands];
+ }
+ 
++- (void)sendControlC {
++    [gateway_ sendCommand:[NSString stringWithFormat:@"%cphony-command", 3]
++           responseTarget:nil
++         responseSelector:nil
++           responseObject:nil
++                    flags:kTmuxGatewayCommandShouldTolerateErrors];
++}
++
+ // Make sure that current tmux options are compatible with iTerm.
+ - (void)validateOptions
+ {
