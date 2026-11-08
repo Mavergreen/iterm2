@@ -42,7 +42,7 @@ cp -R "$T/zip/iTerm.app/Contents/Resources/." "$T/compiled/"
 for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-cross/bin/clang; do
   [ -x "$c" ] && CLANG22=$c && break
 done
-[ -n "${CLANG22:-}" ] || { echo "bundle-inputs-test: no clang22" >&2; exit 1; }
+[ -n "${CLANG22:-}" ] || { echo "bundle-inputs-test: SKIP: no clang22 installed (the 10.9 acceptance guest has none)"; exit 77; }
 printf 'int main(void) { return 0; }\n' > "$T/main.c"
 "$CLANG22" -o "$T/iTerm2" "$T/main.c"
 "$CLANG22" -o "$T/image_decoder" "$T/main.c"

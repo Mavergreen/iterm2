@@ -13,6 +13,7 @@ T=$(CDPATH= cd "$T" && pwd -P)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
 CMAKE=${SHIPYARD_CMAKE:-/usr/local/mavergreen/bin/shipyard-cmake}
+[ -x "$CMAKE" ] || { echo "colorpicker-target-test: SKIP: no shipyard-cmake at $CMAKE (the 10.9 acceptance guest has none)"; exit 77; }
 
 S="$T/src/ColorPicker"
 mkdir -p "$S/ColorPicker" "$S/ColorPicker.framework/Headers" "$S/ColorPickerDemo"

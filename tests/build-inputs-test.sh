@@ -14,6 +14,8 @@ T=$(CDPATH= cd "$T" && pwd -P)
 
 DIGEST=687aedf89cc860e273e16309b4b902a533d047db
 INSTALLED=/usr/local/mavergreen/shipyard/share/cmake/MavericksShipyard/scripts
+[ -d "$INSTALLED" ] && [ -x /usr/local/mavergreen/bin/shipyard-cmake ] \
+  || { echo "build-inputs-test: SKIP: no installed shipyard (the 10.9 acceptance guest has only a copy of its scripts)"; exit 77; }
 
 mkdir -p "$T/src/iTerm2-$DIGEST/image_decoder" "$T/codeload/gnachman/iTerm2/tar.gz"
 printf 'line one\nold\nline three\n' > "$T/src/iTerm2-$DIGEST/image_decoder/image_decoder.m"

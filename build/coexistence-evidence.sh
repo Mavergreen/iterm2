@@ -2,7 +2,8 @@
 # platform: macOS-only -- reads sizes and times with stat -f and preferences with defaults export.
 #   usage: coexistence-evidence.sh before|after EVIDENCE_DIR
 #          before records upstream iTerm2's preferences (com.googlecode.iterm2, as a SHA-256 of what
-#          defaults read prints) and every file under ~/Library/Application Support/iTerm and iTerm2 (size,
+#          defaults read prints, or absent when it has no preferences file), every file of
+#          /Applications/iTerm.app, and every file under ~/Library/Application Support/iTerm and iTerm2 (size,
 #          mtime, path) in EVIDENCE_DIR/before.txt; after records the same in after.txt and exits 1,
 #          naming each difference, when they differ. It never writes either location.
 # spec: BUILD.md "Identity and coexistence" -- this app runs beside upstream iTerm2 and must change none of
@@ -13,11 +14,24 @@ set -eu
 PHASE=$1; E=$2
 DEFAULTS=${COEXIST_DEFAULTS:-defaults}
 AS="$HOME/Library/Application Support"
+APPS=${COEXIST_APPLICATIONS:-/Applications}
 record() {
-  # platform: 10.9's defaults has no export verb; read prints the whole domain
-  prefs=$("$DEFAULTS" read com.googlecode.iterm2 2>/dev/null) || prefs=""
-  [ -n "$prefs" ] || { echo "coexistence-evidence: cannot read com.googlecode.iterm2" >&2; return 1; }
-  printf 'prefs com.googlecode.iterm2 %s\n' "$(printf '%s\n' "$prefs" | shasum -a 256 | cut -d' ' -f1)"
+  # spec: BUILD.md "Acceptance on 10.9" -- a Mac without upstream iTerm2 has no preferences file at all
+  if [ ! -e "$HOME/Library/Preferences/com.googlecode.iterm2.plist" ]; then
+    printf 'absent prefs com.googlecode.iterm2\n'
+  else
+    # platform: 10.9's defaults has no export verb; read prints the whole domain
+    prefs=$("$DEFAULTS" read com.googlecode.iterm2 2>/dev/null) || prefs=""
+    [ -n "$prefs" ] || { echo "coexistence-evidence: cannot read com.googlecode.iterm2" >&2; return 1; }
+    printf 'prefs com.googlecode.iterm2 %s\n' "$(printf '%s\n' "$prefs" | shasum -a 256 | cut -d' ' -f1)"
+  fi
+  if [ -d "$APPS/iTerm.app" ]; then
+    (cd "$APPS" && find iTerm.app -print | LC_ALL=C sort | while IFS= read -r f; do
+       printf 'file %s\n' "$(stat -f '%z %m' "$f") $f"
+     done)
+  else
+    printf 'absent iTerm.app\n'
+  fi
   for d in iTerm iTerm2; do
     if [ -d "$AS/$d" ]; then
       (cd "$AS" && find "$d" -print | LC_ALL=C sort | while IFS= read -r f; do

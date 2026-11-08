@@ -14,6 +14,7 @@ T=$(CDPATH= cd "$T" && pwd -P)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
 CMAKE=${SHIPYARD_CMAKE:-/usr/local/mavergreen/bin/shipyard-cmake}
+[ -x "$CMAKE" ] || { echo "target-settings-test: SKIP: no shipyard-cmake at $CMAKE (the 10.9 acceptance guest has none)"; exit 77; }
 
 S="$T/src"; SDK="$T/sdk"
 mkdir -p "$S/sources" "$S/ThirdParty/SSKeychain" "$S/image_decoder" "$S/Model.xcdatamodeld" "$SDK/usr/lib"
