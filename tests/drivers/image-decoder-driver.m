@@ -33,7 +33,10 @@ DRIVER_MAIN({
     printf("  running from %s\n", here.UTF8String);
     DRIVER_EXPECT(real.length > 0 && ![real isEqualToString:here],
                   "image decoder: the driver runs from a path with a symlink in it");
-    NSData *png = [NSData dataWithContentsOfFile:@ITERM_DRIVER_PNG];
+    // The PNG is ITERM_DRIVER_PNG in the environment where it is set (a packed driver, in the 10.9 guest),
+    // else the source tree's, compiled in.
+    const char *pngPath = getenv("ITERM_DRIVER_PNG");
+    NSData *png = [NSData dataWithContentsOfFile:pngPath ? @(pngPath) : @ITERM_DRIVER_PNG];
     DRIVER_EXPECT(png.length > 0, "image decoder: the sample PNG reads");
     NSData *json = [[[[iTermImageDecoderDriver alloc] init] autorelease] jsonForCompressedImageData:png];
     DRIVER_EXPECT(json.length > 0, "image decoder: a PNG decodes from a path with a symlink in it");

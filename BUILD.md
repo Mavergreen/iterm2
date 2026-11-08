@@ -50,6 +50,10 @@ Upstream's compiled MainMenu.nib instantiates a class named `SUUpdater` as Check
 
 `build/app-inventory.sh APP` prints what a native and a cross build of one commit must agree on: every file's path and, for each slice of each Mach-O (thinned out, since a reader given a universal file reads the host's own slice), digests of its load commands (kinds, dylibs, rpaths, minimum OS), undefined symbols and defined external symbols.
 
+## Acceptance on 10.9
+
+`build/check-release-on-10.9.sh [--drivers TAR] [--repo-tests] VERSION` is what CI's 10.9 guest runs on each release's own pkg, and what a person can run on a 10.9 Mac. It checks the pkg against `SHA256SUMS` and installs nothing unless that and the checks before it pass. Then it installs the pkg, checks the manifest, the app, the updater and its agent, runs the post-update helper with no instance running, installs the pkg again over itself, and runs the packed driver tests (`build/pack-drivers.sh`, which packs `ColorPicker.framework` beside them; a driver's `@executable_path/.` rpath finds it there, and `tests/pack-drivers-test.sh` holds the pack to that), the image decoder's against the installed `image_decoder`. Last it uninstalls and checks that nothing of it is left and that upstream iTerm2's state is unchanged. The guest has no GUI session, so the app's windows are checked by hand with SMOKE.md. Tests that need clang22 or `shipyard-cmake` skip (77) where those are not installed, as in the guest.
+
 ## Resources and the bundle
 
 The 29 nibs and the compiled Core Data model come from the release ZIP (`resources/compiled.tsv`, each at its measured size and SHA-256), staged by shipyard's `mavericks_extract_resource_members`, which also checks the ZIP's own version. Every other resource is copied from the pinned source as `resources/app-resources.tsv` lists. `resources/source-contract.json` records what is verified about the source-to-nib pairing and what is not.

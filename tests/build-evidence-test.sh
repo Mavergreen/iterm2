@@ -13,10 +13,11 @@ T=$(CDPATH= cd "$T" && pwd -P)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
 CMAKE=${SHIPYARD_CMAKE:-/usr/local/mavergreen/bin/shipyard-cmake}
+[ -x "$CMAKE" ] || { echo "build-evidence-test: SKIP: no shipyard-cmake at $CMAKE (the 10.9 acceptance guest has none)"; exit 77; }
 for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-cross/bin/clang; do
   [ -x "$c" ] && CLANG22=$c && break
 done
-[ -n "${CLANG22:-}" ] || { echo "build-evidence-test: no clang22" >&2; exit 1; }
+[ -n "${CLANG22:-}" ] || { echo "build-evidence-test: SKIP: no clang22 installed (the 10.9 acceptance guest has none)"; exit 77; }
 
 # spec: BUILD.md "Inputs" -- a fixture selects its compiler as cmake/ITermInputs.cmake does: with a plain
 #       set() before project(), so it is never in CMakeCache.txt

@@ -15,7 +15,9 @@ printf 'v\n' > "$A/iTerm/version.txt"; printf '{}\n' > "$A/iTerm2/DynamicProfile
 # platform: 10.9's defaults has no export verb, so the fake answers only "read DOMAIN", as 10.9's does
 printf '#!/bin/sh\n[ "$1" = read ] && [ "$2" = com.googlecode.iterm2 ] || exit 1\ncat "%s/prefs"\n' "$T" > "$T/fake-defaults"; chmod +x "$T/fake-defaults"
 printf 'prefs-1\n' > "$T/prefs"
-ev() { HOME="$H" COEXIST_DEFAULTS="$T/fake-defaults" sh "$REPO_ROOT/build/coexistence-evidence.sh" "$@"; }
+mkdir -p "$T/apps/iTerm.app/Contents"; printf 'x\n' > "$T/apps/iTerm.app/Contents/Info.plist"
+mkdir -p "$H/Library/Preferences"; P="$H/Library/Preferences/com.googlecode.iterm2.plist"; : > "$P"
+ev() { HOME="$H" COEXIST_DEFAULTS="$T/fake-defaults" COEXIST_APPLICATIONS="$T/apps" sh "$REPO_ROOT/build/coexistence-evidence.sh" "$@"; }
 
 ev before "$T/e1" >/dev/null 2>&1 || fail "before exited nonzero"
 ev after "$T/e1" >"$T/out" 2>&1 || fail "unchanged state: after exited nonzero: $(cat "$T/out")"
@@ -39,6 +41,23 @@ grep -q 'AutoLaunch.scpt' "$T/out" || fail "a new file is not named"
 ev after "$T/never" >/dev/null 2>&1 && fail "after without before passed"
 : > "$T/prefs"
 ev before "$T/e5" >"$T/out" 2>&1 && fail "unreadable upstream preferences were recorded as if read"
+
+# spec: BUILD.md "Acceptance on 10.9" -- a Mac without upstream iTerm2 (the 10.9 guest) has no such domain:
+#       that is recorded as absent, and the domain appearing afterwards is a change
+rm -f "$P"
+ev before "$T/e6" >"$T/out" 2>&1 || fail "no upstream preferences at all could not be recorded: $(cat "$T/out")"
+grep -q '^absent prefs com.googlecode.iterm2$' "$T/e6/before.txt" 2>/dev/null || fail "missing upstream preferences are not recorded as absent"
+ev after "$T/e6" >/dev/null 2>&1 || fail "still-absent upstream preferences are a change"
+printf 'prefs-1\n' > "$T/prefs"; : > "$P"
+if ev after "$T/e6" >"$T/out" 2>&1; then fail "upstream preferences that appeared passed"; fi
+grep -q 'com.googlecode.iterm2' "$T/out" || fail "preferences that appeared are not named"
+
+# spec: BUILD.md "Acceptance on 10.9" -- upstream's app is part of its state too
+ev before "$T/e7" >/dev/null 2>&1 || fail "before failed with upstream's app present"
+grep -q 'iTerm.app/Contents/Info.plist' "$T/e7/before.txt" 2>/dev/null || fail "before does not list upstream's app"
+sleep 1; printf 'y\n' >> "$T/apps/iTerm.app/Contents/Info.plist"
+if ev after "$T/e7" >"$T/out" 2>&1; then fail "a changed upstream app passed"; fi
+grep -q 'iTerm.app/Contents/Info.plist' "$T/out" || fail "a changed upstream app is not named"
 
 [ "$fails" -eq 0 ] || { echo "coexistence-evidence-test: $fails failure(s)" >&2; exit 1; }
 echo "coexistence-evidence-test: OK"

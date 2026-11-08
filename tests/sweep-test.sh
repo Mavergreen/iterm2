@@ -11,10 +11,11 @@ T=$(CDPATH= cd "$T" && pwd -P)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
 CMAKE=${SHIPYARD_CMAKE:-/usr/local/mavergreen/bin/shipyard-cmake}
+[ -x "$CMAKE" ] || { echo "sweep-test: SKIP: no shipyard-cmake at $CMAKE (the 10.9 acceptance guest has none)"; exit 77; }
 for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-cross/bin/clang; do
   [ -x "$c" ] && CLANG22=$c && break
 done
-[ -n "${CLANG22:-}" ] || { echo "sweep-test: no clang22" >&2; exit 1; }
+[ -n "${CLANG22:-}" ] || { echo "sweep-test: SKIP: no clang22 installed (the 10.9 acceptance guest has none)"; exit 77; }
 
 fixture() { # NAME A-BODY B-BODY -- target b links target a
   mkdir -p "$T/$1"
