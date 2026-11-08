@@ -28,7 +28,8 @@ for m in '- (NSString *)applicationSupportDirectory {' '- (NSString *)legacyAppl
     || fail "identity: the support directory follows CFBundleName ($m)"
 done
 
-# Each allowed use is pinned by file and its exact line, so a new use in an allowlisted file still fails.
+# spec: BUILD.md "Identity and coexistence" -- each allowed use is pinned by file and exact line, so a
+#       new use in an allowlisted file still fails
 cat > "$T/allowed" <<'ALLOWED'
 AppleScriptTest.m:static NSString *const kTestBundleId = @"com.googlecode.iterm2.applescript";
 SCPFile.m:static NSString *const kSCPFileErrorDomain = @"com.googlecode.iterm2.SCPFile";
@@ -49,8 +50,8 @@ grep -q 'handlerId isEqualToString:\[\[NSBundle mainBundle\] bundleIdentifier\]'
 grep -q '^const char \*iTermFileDescriptorSocketNamePrefix = "Mavericks-iTerm2\.socket\.";$' "$S/iTermFileDescriptorSocketPath.c" \
   || fail "identity: session server sockets have their own prefix"
 
-# spec: Review Focus 4 -- with both directories the same, legacy notes exist only where the new ones are,
-#       so the migration must keep moving only when the new file is absent
+# spec: BUILD.md "Identity and coexistence" -- with both directories the same, legacy notes exist only
+#       where the new ones are, so the migration must move them only when the new file is absent
 grep -q '\[fileManager fileExistsAtPath:\[self legacyFilename\]\] && !\[fileManager fileExistsAtPath:\[self filename\]\]' "$S/ToolNotes.m" \
   || fail "identity: notes survive when the directories coincide"
 

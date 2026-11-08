@@ -1,6 +1,7 @@
 #!/bin/sh
 # platform: macOS-only -- compiles product/iTermFamilyVersion.m with clang22 and runs it, so it needs a host
-#           that runs x86_64: 10.9 natively, or a modern Mac with Rosetta (77 = skip without it).
+#           that runs x86_64 natively: 10.9 or an Intel Mac. An Apple Silicon Mac (hw.optional.arm64, which
+#           a translated process also reports) skips (77): the family runs no x86_64 code under Rosetta.
 # spec: BUILD.md "Updates" -- version:newerThan: replaced Sparkle's comparator for iTerm2's four
 #       incompatible-software checks (Docker 1.3.0, LaunchBar 6.6.2, Path Finder 7.3.3, Tower 2.3.4).
 #       Dotted numbers compare numerically; at equal numbers, a version with a suffix (6.6.2b1,
@@ -14,8 +15,8 @@ for c in /usr/local/mavergreen/clang22/bin/clang /usr/local/mavergreen/clang22-c
   [ -x "$c" ] && CLANG22=$c && break
 done
 [ -n "${CLANG22:-}" ] || { echo "version-compare-test: no clang22" >&2; exit 1; }
-if [ "$(uname -m)" != x86_64 ] && ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
-  echo "version-compare-test: SKIP: this host cannot run x86_64 (no Rosetta)"; exit 77
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ]; then
+  echo "version-compare-test: SKIP: this host runs x86_64 only under Rosetta"; exit 77
 fi
 cat > "$T/main.m" <<'M'
 #import <Foundation/Foundation.h>
@@ -47,6 +48,6 @@ SDK=$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh" --arch x86_64)
 "$CLANG22" -x objective-c -fno-objc-arc -std=c99 -arch x86_64 -isysroot "$SDK" -mmacosx-version-min=10.9 -Werror \
   -o "$T/vc" "$T/main.m" "$REPO_ROOT/product/iTermFamilyVersion.m" -framework Foundation \
   || { echo "version-compare-test: FAIL: does not compile" >&2; exit 1; }
-if [ "$(uname -m)" = x86_64 ]; then "$T/vc"; else /usr/bin/arch -x86_64 "$T/vc"; fi \
+"$T/vc" \
   || { echo "version-compare-test: FAIL" >&2; exit 1; }
 echo "version-compare-test: OK"

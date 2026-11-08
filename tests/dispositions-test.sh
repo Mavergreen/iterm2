@@ -5,7 +5,7 @@
 #       stored names (GrowlTrigger, PTYSession, the "BM Growl" key) stay byte-identical; the patch set
 #       is exactly 0001-0011; the updater bundle id is never a literal; the nib shim stands alone.
 set -eu
-# Patched file lists are compared sorted; modern macOS's en_US.UTF-8 collates case-insensitively, 10.9 by byte.
+# platform: modern macOS's en_US.UTF-8 sort ignores case and 10.9's sorts by byte; the file lists compare sorted
 export LC_ALL=C
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d "${TMPDIR:-/tmp}/iterm-dispositions-test.XXXXXX")
