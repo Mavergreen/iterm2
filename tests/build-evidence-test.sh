@@ -23,7 +23,8 @@ done
 project() { # NAME BODY -- a fixture project whose target iTerm2-app is BODY
   mkdir -p "$T/$1"
   printf 'cmake_minimum_required(VERSION 3.25)\nset(CMAKE_C_COMPILER "%s")\nproject(fixture LANGUAGES C)\n%s\n' "$CLANG22" "$2" > "$T/$1/CMakeLists.txt"
-  "$CMAKE" -S "$T/$1" -B "$T/$1/b" >"$T/$1.configure" 2>&1 \
+  # x86_64 named, as the presets do: on an arm64 host CMake would default to arm64, which the 10.9 SDK lacks.
+  "$CMAKE" -S "$T/$1" -B "$T/$1/b" -DCMAKE_OSX_ARCHITECTURES=x86_64 >"$T/$1.configure" 2>&1 \
     || { cat "$T/$1.configure" >&2; fail "$1: the fixture did not configure"; }
 }
 record() { # NAME -- run the recorder; its exit status is $rc

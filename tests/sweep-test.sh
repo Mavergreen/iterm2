@@ -20,7 +20,8 @@ fixture() { # NAME A-BODY B-BODY -- target b links target a
   mkdir -p "$T/$1"
   printf '%s\n' "$2" > "$T/$1/a.c"; printf '%s\n' "$3" > "$T/$1/b.c"
   printf 'cmake_minimum_required(VERSION 3.25)\nset(CMAKE_C_COMPILER "%s")\nproject(f LANGUAGES C)\nset(CMAKE_EXPORT_COMPILE_COMMANDS ON)\nadd_library(a STATIC a.c)\nadd_executable(b b.c)\ntarget_link_libraries(b PRIVATE a)\n' "$CLANG22" > "$T/$1/CMakeLists.txt"
-  "$CMAKE" -S "$T/$1" -B "$T/$1/b" >"$T/$1.configure" 2>&1 || fail "$1: the fixture did not configure"
+  # x86_64 named, as the presets do: on an arm64 host CMake would default to arm64, which the 10.9 SDK lacks.
+  "$CMAKE" -S "$T/$1" -B "$T/$1/b" -DCMAKE_OSX_ARCHITECTURES=x86_64 >"$T/$1.configure" 2>&1 || fail "$1: the fixture did not configure"
 }
 sum() { sed -n "s/^$2 //p" "$T/$1-out/summary.txt"; }
 

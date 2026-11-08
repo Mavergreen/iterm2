@@ -140,7 +140,9 @@ gate() { # COMPILER [EXTRA-ARGS...] -- configure the real CMakeLists with fixtur
   printf 'set(ITERM_UPSTREAM_VERSION 3.0.15)\nset(ITERM_SOURCE_DIR [[%s]])\nset(ITERM_RESOURCES_ZIP [[%s]])\nset(ITERM_RESOURCES_SHA256 %s)\nset(ITERM_CLANG22_VERSION %s)\nset(ITERM_RECAULK_RECIPES [[%s]])\nset(ITERM_CLANG22_COMPILER [[%s]])\nset(ITERM_DEPENDENCY_MANIFEST [[%s]])\nset(ITERM_MODE native)\n' \
     "$S" "$T/g/resources.zip" "${GATE_SHA:-90e6f2bd3eb2d245f4ab2c9f856c627c8a1536bac024fb3989db417bc3147565}" \
     "${GATE_PIN:-22.1.8-mavericks.12}" "$T/g/recipes.json" "$c" "$T/g/deps.tsv" > "$T/g/inputs.cmake"
-  "$CMAKE" -S "$REPO_ROOT" -B "$T/g/b" "$@" >"$T/log" 2>&1
+  # x86_64 named, as the presets do: on an arm64 host CMake would default to arm64, which the 10.9 SDK lacks,
+  # and the compiler check would fail before the gate under test is reached.
+  "$CMAKE" -S "$REPO_ROOT" -B "$T/g/b" -DCMAKE_OSX_ARCHITECTURES=x86_64 "$@" >"$T/log" 2>&1
 }
 gate /usr/bin/clang -DITERM_INPUTS_FILE="$T/g/inputs.cmake" && fail "Apple clang was accepted"
 logged "not the family's clang 22" || { cat "$T/log" >&2; fail "Apple clang was not refused by identity"; }
