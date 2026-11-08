@@ -8,5 +8,5 @@ CVE-2024-38395	3.5.2	title reporting answers whatever its setting says	guarded	a
 CVE-2024-38396	3.5.2	title reporting combined with tmux integration	guarded	allowTitleReporting_ && \[self terminalIsTrusted\]	-
 CVE-2025-22275	3.5.11	SSH integration logs session input and output on the remote host	absent	iTermConductor	-
 CVE-2019-19022	after 3.3.6	search history saved in the preferences file	absent	NoSyncSearchHistory	-
-CVE-2026-41253	after 3.6.9	not yet identified in 3.0.15's terms	pending	-	-
-ITERM2-URL-SCHEME	-	ssh:, telnet: and x-man-page: links become a session command	pending	-	-
+CVE-2026-41253	3.6.10	SSH integration accepts its conductor protocol from any terminal output	absent	iTermConductor	-
+ITERM2-URL-SCHEME	after 3.0.15	ssh:, telnet: and x-man-page: links become a session command	fixed	-	0012-url-links-plain-names-only.patch

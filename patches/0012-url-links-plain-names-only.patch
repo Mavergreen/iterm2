@@ -1,0 +1,177 @@
+ssh: and telnet: links: refuse a user or host that is not a plain name.
+
+A link's user and host became arguments of ssh or telnet as they were, so
+ssh://u@h%20-oProxyCommand=... ran "ssh -l u h -oProxyCommand=...": code
+execution from a link, through a profile configured as the scheme's handler.
+Backported from upstream 168d0eee0f (host) and ad73877882 (user), with the
+leading-character check upstream's sanitizedHostname adds later: a host must
+start with a letter or digit and hold only letters, digits, ":", "-" and ".";
+a user only letters, digits, "_", "-", "+" and ".", and, beyond upstream, not
+start with "-". Either is shell-escaped as upstream does. A refused link opens
+nothing (launchBookmark returns nil, as upstream's does).
+
+A handler profile with a custom command takes the link's parts as $$HOST$$,
+$$USER$$, $$URL$$, $$PATH$$, $$RES$$ and $$PASSWORD$$, then splits the command
+into arguments. The same checks hold there (iTermURLSubstitutions): a user or
+host that is not a plain name opens no session, and every free-form part is
+shell-escaped so it stays one argument.
+
+--- a/sources/iTermController.m
++++ b/sources/iTermController.m
+@@ -981,6 +981,65 @@
+                           block:nil];
+ }
+ 
++// Mavericks iTerm2: a URL's user and host become arguments of ssh or telnet, so each must be a plain
++// name that cannot be read as an option (upstream 168d0eee0f, ad73877882 and its sanitizedHostname).
++// Anything else refuses the whole URL. A user may not begin with "-" either, which upstream allows.
++NSString *iTermURLUsernameArgument(NSString *username) {
++    NSMutableCharacterSet *legal = [NSMutableCharacterSet alphanumericCharacterSet];
++    [legal addCharactersInString:@"_-+."];
++    if (username.length == 0 ||
++        [username hasPrefix:@"-"] ||
++        [username rangeOfCharacterFromSet:[legal invertedSet]].location != NSNotFound) {
++        ELog(@"Refusing a URL whose user name is not a plain name: %@", username);
++        return nil;
++    }
++    return [username stringWithEscapedShellCharactersIncludingNewlines:YES];
++}
++
++NSString *iTermURLHostArgument(NSString *hostname) {
++    NSString *const kAlphanumerics = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
++    NSCharacterSet *legalFirst = [NSCharacterSet characterSetWithCharactersInString:kAlphanumerics];
++    NSCharacterSet *legal = [NSCharacterSet characterSetWithCharactersInString:[kAlphanumerics stringByAppendingString:@":-."]];
++    if (hostname.length == 0 ||
++        ![legalFirst characterIsMember:[hostname characterAtIndex:0]] ||
++        [hostname rangeOfCharacterFromSet:[legal invertedSet]].location != NSNotFound) {
++        ELog(@"Refusing a URL whose host is not a plain name: %@", hostname);
++        return nil;
++    }
++    return [hostname stringWithEscapedShellCharactersIncludingNewlines:YES];
++}
++
++// Mavericks iTerm2: a profile's custom command takes a link's parts as $$HOST$$, $$USER$$ and the rest, and is
++// split into arguments, so the user and host must be plain names as above, and every free-form part is
++// shell-escaped to stay one argument. Returns nil, refusing the link, when the user or host is not.
++NSDictionary *iTermURLSubstitutions(NSString *urlString) {
++    NSURL *url = urlString ? [NSURL URLWithString:urlString] : nil;
++    NSString *host = @"";
++    NSString *user = @"";
++    if (url.host.length) {
++        host = iTermURLHostArgument(url.host);
++        if (!host) {
++            return nil;
++        }
++    }
++    if (url.user.length) {
++        user = iTermURLUsernameArgument(url.user);
++        if (!user) {
++            return nil;
++        }
++    }
++    NSString *(^escaped)(NSString *) = ^NSString *(NSString *s) {
++        return s ? [s stringWithEscapedShellCharactersIncludingNewlines:YES] : @"";
++    };
++    return @{ @"$$URL$$": escaped(urlString),
++              @"$$HOST$$": host,
++              @"$$USER$$": user,
++              @"$$PASSWORD$$": escaped([url password]),
++              @"$$PORT$$": [url port] ? [[url port] stringValue] : @"",
++              @"$$PATH$$": escaped([url path]),
++              @"$$RES$$": escaped([url resourceSpecifier]) };
++}
++
+ - (NSDictionary *)profile:(NSDictionary *)aDict
+         modifiedToOpenURL:(NSString *)url
+             forObjectType:(iTermObjectType)objectType {
+@@ -1000,13 +1059,21 @@
+         if ([urlType compare:@"ssh" options:NSCaseInsensitiveSearch] == NSOrderedSame) {
+             NSMutableString *tempString = [NSMutableString stringWithString:@"ssh "];
+             if ([urlRep user]) {
+-                [tempString appendFormat:@"-l %@ ", [urlRep user]];
++                NSString *user = iTermURLUsernameArgument([urlRep user]);
++                if (!user) {
++                    return nil;
++                }
++                [tempString appendFormat:@"-l %@ ", user];
+             }
+             if ([urlRep port]) {
+                 [tempString appendFormat:@"-p %@ ", [urlRep port]];
+             }
+             if ([urlRep host]) {
+-                [tempString appendString:[urlRep host]];
++                NSString *host = iTermURLHostArgument([urlRep host]);
++                if (!host) {
++                    return nil;
++                }
++                [tempString appendString:host];
+             }
+             [tempDict setObject:tempString forKey:KEY_COMMAND_LINE];
+             [tempDict setObject:@"Yes" forKey:KEY_CUSTOM_COMMAND];
+@@ -1019,10 +1086,18 @@
+         } else if ([urlType compare:@"telnet" options:NSCaseInsensitiveSearch] == NSOrderedSame) {
+             NSMutableString *tempString = [NSMutableString stringWithString:@"telnet "];
+             if ([urlRep user]) {
+-                [tempString appendFormat:@"-l %@ ", [urlRep user]];
++                NSString *user = iTermURLUsernameArgument([urlRep user]);
++                if (!user) {
++                    return nil;
++                }
++                [tempString appendFormat:@"-l %@ ", user];
+             }
+             if ([urlRep host]) {
+-                [tempString appendString:[urlRep host]];
++                NSString *host = iTermURLHostArgument([urlRep host]);
++                if (!host) {
++                    return nil;
++                }
++                [tempString appendString:host];
+                 if ([urlRep port]) [tempString appendFormat:@" %@", [urlRep port]];
+             }
+             [tempDict setObject:tempString forKey:KEY_COMMAND_LINE];
+@@ -1066,6 +1141,10 @@
+         DLog(@"Add URL to profile");
+         // Automatically fill in ssh command if command is exactly equal to $$ or it's a login shell.
+         aDict = [self profile:aDict modifiedToOpenURL:url forObjectType:objectType];
++        if (aDict == nil) {
++            // Mavericks iTerm2: the URL was refused (upstream 168d0eee0f).
++            return nil;
++        }
+     }
+     if (!bookmarkData) {
+         DLog(@"Using profile:\n%@", aDict);
+--- a/sources/PseudoTerminal.m
++++ b/sources/PseudoTerminal.m
+@@ -76,6 +76,9 @@
+ #import "VT100Screen.h"
+ #import "VT100Screen.h"
+ #import "VT100Terminal.h"
++
++// Mavericks iTerm2: defined in iTermController.m (patches/0012).
++NSDictionary *iTermURLSubstitutions(NSString *urlString);
+ #include "iTermFileDescriptorClient.h"
+ 
+ #include <unistd.h>
+@@ -7259,16 +7262,12 @@
+         NSString *cmd = [ITAddressBookMgr bookmarkCommand:profile
+                                             forObjectType:objectType];
+         NSString *name = profile[KEY_NAME];
+-        NSURL *url = [NSURL URLWithString:urlString];
+-
+-        // Grab the addressbook command
+-        NSDictionary *substitutions = @{ @"$$URL$$": urlString ?: @"",
+-                                         @"$$HOST$$": [url host] ?: @"",
+-                                         @"$$USER$$": [url user] ?: @"",
+-                                         @"$$PASSWORD$$": [url password] ?: @"",
+-                                         @"$$PORT$$": [url port] ? [[url port] stringValue] : @"",
+-                                         @"$$PATH$$": [url path] ?: @"",
+-                                         @"$$RES$$": [url resourceSpecifier] ?: @"" };
++        // Grab the addressbook command. Mavericks iTerm2: the link's parts, checked and escaped
++        // (iTermController.m), or no session for a link whose user or host is not a plain name.
++        NSDictionary *substitutions = iTermURLSubstitutions(urlString);
++        if (!substitutions) {
++            return nil;
++        }
+ 
+         // If the command or name have any $$VARS$$ not accounted for above, prompt the user for
+         // substitutions.
