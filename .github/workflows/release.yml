@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      local_release:
+        description: "Cut a -mavericks.(N+1) repackage of the current upstream"
+        type: boolean
+        default: false
+      reconcile:
+        description: "Set by the nightly reconcile backstop"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# spec: shipyard SKILL.md "Release workflow" -- a run that can publish is alone in its group
+concurrency:
+  group: >-
+    release-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ver:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.full }}
+      publish: ${{ steps.ver.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - id: ver
+        env:
+          LOCAL_RELEASE: ${{ inputs.local_release }}
+          RECONCILE: ${{ inputs.reconcile }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          effective_local_release="$LOCAL_RELEASE"
+          [ "$RECONCILE" = true ] && effective_local_release=true
+          mode="$(LOCAL_RELEASE="$effective_local_release" sh "$SHIPYARD_SCRIPTS/release-mode.sh")"
+          out="$(sh build/version.sh "$mode")"
+          full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
+          rel="$(printf '%s\n' "$out" | sed -n 's/^RELEASE=//p')"
+          [ -n "$full" ] || { echo "::error::version.sh gave no FULL= line: $out"; exit 1; }
+          [ "$GITHUB_REF_NAME" = main ] || rel=no
+          # spec: shipyard SKILL.md "A release is a declared state, not an event" -- a reconcile
+          #       dispatch publishes only while no release carries this tree's state
+          if [ "$rel" = yes ] && [ "$RECONCILE" = true ]; then
+            digest="$(sh "$SHIPYARD_SCRIPTS/release-state.sh")"
+            answer="$(sh "$SHIPYARD_SCRIPTS/release-needed.sh" --digest "$digest" --version "$full")"
+            echo "reconcile: release-needed.sh says $answer"
+            case "$answer" in
+              PUBLISH) : ;;
+              *) rel=no ;;
+            esac
+          fi
+          { echo "full=$full"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
+          echo "version=$full publish=$rel"
