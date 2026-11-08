@@ -73,6 +73,10 @@ endif()
 #       <upstream>-mavericks.N, resolved from UPSTREAM_VERSION and the shipped tags.
 include(MavericksVersion)
 mavericks_resolve_version(ITERM_PRODUCT_VERSION)
+# spec: BUILD.md "Updates" -- the family updater's post-update helper, shipped in the app's MacOS/.
+add_executable(restart-for-update "${CMAKE_CURRENT_SOURCE_DIR}/product/restart-for-update.m")
+target_link_libraries(restart-for-update PRIVATE "-framework Cocoa")
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermResources.cmake")
 iterm_add_bundle(
   SOURCE_DIR "${ITERM_SOURCE_DIR}"

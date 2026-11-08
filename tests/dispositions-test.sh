@@ -41,7 +41,7 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
 [ "$(touches 0002-notifications-user-notification-center.patch)" = 'sources/iTermGrowlDelegate.h sources/iTermGrowlDelegate.m ' ] \
   || fail "0002 touches other files"
 [ "$(touches 0003-scp-transfers-unavailable.patch)" = 'sources/SCPFile.m ' ] || fail "0003 touches other files"
-[ "$(touches 0004-family-updater.patch)" = 'sources/GeneralPreferencesViewController.m sources/iTermApplicationDelegate.h sources/iTermApplicationDelegate.m sources/iTermController.h sources/iTermController.m ' ] \
+[ "$(touches 0004-family-updater.patch)" = 'sources/GeneralPreferencesViewController.m sources/iTermApplicationDelegate.m sources/iTermController.h sources/iTermController.m ' ] \
   || fail "0004 touches other files"
 [ "$(touches 0005-terminal-file-extern.patch)" = 'sources/TerminalFile.h ' ] || fail "0005 touches other files"
 [ "$(touches 0006-coexist-with-upstream.patch)" = 'sources/HotkeyWindowController.m sources/NSFileManager+iTerm.m sources/iTermLaunchServices.m ' ] \
@@ -58,7 +58,7 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
 [ "$(touches 0012-url-links-plain-names-only.patch)" = 'sources/PseudoTerminal.m sources/iTermController.m ' ] || fail "0012 touches other files"
 
 if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/log" 2>&1; then
-  left=$(grep -rIlE 'Growl/Growl\.h|GrowlApplicationBridge|NMSSH/|NMSSH[A-Z]|libssh2[_.]|Sparkle/|SUUpdaterWillRestartNotification|SUFeedURL([^A-Za-z]|$)|refreshSoftwareUpdateUserDefaults' \
+  left=$(grep -rIlE 'Growl/Growl\.h|GrowlApplicationBridge|NMSSH/|NMSSH[A-Z]|libssh2[_.]|Sparkle/|SUFeedURL([^A-Za-z]|$)|refreshSoftwareUpdateUserDefaults' \
            "$T/src/sources" "$T/src/image_decoder" --include='*.h' --include='*.m' --include='*.c' || :)
   [ -z "$left" ] || fail "references remain after patching: $left"
   for f in sources/GrowlTrigger.m sources/GrowlTrigger.h sources/ITAddressBookMgr.h \
@@ -83,7 +83,12 @@ if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/lo
   grep -q 'deliverNotification:' "$T/src/sources/iTermGrowlDelegate.m" || fail "notifications are not delivered"
   grep -q 'removeDeliveredNotification:notification' "$T/src/sources/iTermGrowlDelegate.m" \
     || fail "a clicked notification is not removed from Notification Center"
-  ! grep -rq 'sparkleRestarting' "$T/src/sources" || fail "the dead sparkleRestarting property remains"
+  # spec: BUILD.md "Updates" -- upstream's restart flag stays, heard from the family updater's helper
+  grep -q '\[\[NSDistributedNotificationCenter defaultCenter\] addObserver:self' "$T/src/sources/iTermApplicationDelegate.m" \
+    && grep -q 'name:@"SUUpdaterWillRestartNotificationName"' "$T/src/sources/iTermApplicationDelegate.m" \
+    || fail "Sparkle's will-restart notification is not heard on the distributed center"
+  grep -q 'itad.sparkleRestarting' "$T/src/sources/iTermController.m" \
+    || fail "a quit for an update no longer leaves restorable sessions running"
   grep -q '@ITERM_RELEASES_URL' "$T/src/sources/iTermApplicationDelegate.m" \
     || fail "the updater alert does not name the release page (ITERM_RELEASES_URL)"
   grep -q 'is not installed' "$T/src/sources/iTermApplicationDelegate.m" \

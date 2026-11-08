@@ -1,8 +1,9 @@
 #!/bin/sh
 # platform: macOS-only -- makes the icon with iconutil and edits Info.plist with plutil (both on 10.9).
-#   usage: assemble-bundle.sh OUT_APP SOURCE_DIR COMPILED_DIR APP_EXE IMAGE_DECODER COLORPICKER_FRAMEWORK VERSION
+#   usage: assemble-bundle.sh OUT_APP SOURCE_DIR COMPILED_DIR APP_EXE IMAGE_DECODER COLORPICKER_FRAMEWORK VERSION RESTART_HELPER
 #          Assembles iTerm2.app at OUT_APP (which must not exist) from explicit inputs only:
-#            - APP_EXE as Contents/MacOS/iTerm2, and IMAGE_DECODER as Contents/Resources/image_decoder
+#            - APP_EXE as Contents/MacOS/iTerm2, RESTART_HELPER as Contents/MacOS/restart-for-update (the
+#              family updater's post-update helper), and IMAGE_DECODER as Contents/Resources/image_decoder
 #              (0755), beside upstream's OtherResources/image_decoder.sb;
 #            - each resources/compiled.tsv destination from COMPILED_DIR (B3's verified extraction of the
 #              release's nibs and model), and each resources/app-resources.tsv file from SOURCE_DIR;
@@ -15,8 +16,8 @@
 # spec: BUILD.md "Resources and the bundle".
 set -eu
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
-[ "$#" -eq 7 ] || { echo 'usage: assemble-bundle.sh OUT_APP SOURCE_DIR COMPILED_DIR APP_EXE IMAGE_DECODER COLORPICKER_FRAMEWORK VERSION' >&2; exit 2; }
-OUT=$1; SRC=$2; COMPILED=$3; EXE=$4; DECODER=$5; FW=$6; VERSION=$7
+[ "$#" -eq 8 ] || { echo 'usage: assemble-bundle.sh OUT_APP SOURCE_DIR COMPILED_DIR APP_EXE IMAGE_DECODER COLORPICKER_FRAMEWORK VERSION RESTART_HELPER' >&2; exit 2; }
+OUT=$1; SRC=$2; COMPILED=$3; EXE=$4; DECODER=$5; FW=$6; VERSION=$7; HELPER=$8
 die() { echo "assemble-bundle: $*" >&2; exit 1; }
 [ ! -e "$OUT" ] && [ ! -L "$OUT" ] || die "$OUT already exists"
 printf '%s\n' "$VERSION" | grep -Eqx '[0-9]+(\.[0-9]+)*-mavericks\.[1-9][0-9]*' || die "VERSION '$VERSION' is not <upstream>-mavericks.N"
@@ -38,6 +39,7 @@ trap 'rm -rf "$tmp"' EXIT
 A="$tmp/iTerm2.app/Contents"
 mkdir -p "$A/MacOS" "$A/Resources/Model.momd" "$A/Frameworks"
 cp "$EXE" "$A/MacOS/iTerm2" && chmod 755 "$A/MacOS/iTerm2"
+cp "$HELPER" "$A/MacOS/restart-for-update" && chmod 755 "$A/MacOS/restart-for-update"
 cp "$DECODER" "$A/Resources/image_decoder" && chmod 755 "$A/Resources/image_decoder"
 cp "$SRC/OtherResources/image_decoder.sb" "$A/Resources/image_decoder.sb"
 tail -n +2 "$REPO_ROOT/resources/compiled.tsv" | while IFS="$TAB" read -r member dest kind bytes sha; do
