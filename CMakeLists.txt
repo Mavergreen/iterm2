@@ -16,6 +16,7 @@ set(MAVERICKS_REQUIRE_APPLECLANG OFF)
 include(Mavericks)
 include(MavericksSDKMetadata)
 include(MavericksXcodeInputs)
+include(MavericksSparkle)
 
 mavericks_export_xcode_sources(ITERM_SOURCES_FILE
   PROJECT "${ITERM_SOURCE_DIR}/iTerm2.xcodeproj"
@@ -73,6 +74,25 @@ endif()
 #       <upstream>-mavericks.N, resolved from UPSTREAM_VERSION and the shipped tags.
 include(MavericksVersion)
 mavericks_resolve_version(ITERM_PRODUCT_VERSION)
+# spec: BUILD.md "Updates" -- the family updater, with upstream's icon (maintainer, 2026-11-08), restarts a
+#       running iTerm2 through its post-update helper once a new version is installed.
+execute_process(COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/build/make-icns.sh" "${ITERM_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/icon/iTerm2.icns"
+  RESULT_VARIABLE _iterm_rc)
+if(NOT _iterm_rc EQUAL 0)
+  message(FATAL_ERROR "build/make-icns.sh could not make the updater's icon from ${ITERM_SOURCE_DIR}")
+endif()
+mavericks_add_updater_app(
+  PRODUCT iterm2
+  PRODUCT_NAME "Mavericks iTerm2"
+  ICON "${CMAKE_BINARY_DIR}/icon/iTerm2.icns"
+  VERSION "${ITERM_PRODUCT_VERSION}"
+  CONFIRM_TITLE "Mavericks iTerm2 is up to date"
+  CONFIRM_BODY "iTerm2 restarts now; sessions that can be restored come back."
+  POST_UPDATE_HELPER "/Applications/Mavericks iTerm2.app/Contents/MacOS/restart-for-update")
+if(NOT MAVERICKS_UPDATER_BUNDLE_ID STREQUAL ITERM_UPDATER_BUNDLE_ID)
+  message(FATAL_ERROR "the updater is ${MAVERICKS_UPDATER_BUNDLE_ID} but patch 0004 launches ${ITERM_UPDATER_BUNDLE_ID}")
+endif()
+
 # spec: BUILD.md "Updates" -- the family updater's post-update helper, shipped in the app's MacOS/.
 add_executable(restart-for-update "${CMAKE_CURRENT_SOURCE_DIR}/product/restart-for-update.m")
 target_link_libraries(restart-for-update PRIVATE "-framework Cocoa")
@@ -86,3 +106,5 @@ iterm_add_bundle(
   VERSION "${ITERM_PRODUCT_VERSION}"
   HOST_COMPILER "${ITERM_CLANG22_COMPILER}"
   OUTPUT_DIR "${CMAKE_BINARY_DIR}/resource-inputs")
+# spec: BUILD.md "Updates" -- the updater ships with the app, so building the app builds it
+add_dependencies(iTerm2-app ${MAVERICKS_UPDATER_TARGET})

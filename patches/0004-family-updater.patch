@@ -4,8 +4,10 @@ The old Sparkle framework is not bundled (maintainer decision 2026-11-07). This
 removes the imports, the appcast defaults iTerm2 wrote for Sparkle, and Sparkle's
 version comparator, replaced by iTermFamilyVersionIsNewer
 (product/iTermFamilyVersion.m), which orders versions the same way for the four
-incompatible-software checks. The two Sparkle checkboxes in General preferences are
-hidden. checkForUpdates: launches the family updater, ITERM_UPDATER_BUNDLE_ID (from
+incompatible-software checks. In General preferences, "Check for updates
+automatically" becomes the family updater's own SUEnableAutomaticChecks, kept in its
+defaults domain (product/iTermFamilyUpdaterPreferences.m), and "Check for test
+releases" is hidden: the family has no such channel. checkForUpdates: launches the family updater, ITERM_UPDATER_BUNDLE_ID (from
 shipyard's product registry), with --user; if it is not installed, or cannot be opened,
 an alert says which and names ITERM_RELEASES_URL.
 
@@ -244,19 +246,39 @@ helper, which then stops waiting.
  }
 --- a/sources/GeneralPreferencesViewController.m
 +++ b/sources/GeneralPreferencesViewController.m
-@@ -187,13 +187,9 @@
+@@ -14,6 +14,10 @@
+ #import "PasteboardHistory.h"
+ #import "WindowArrangements.h"
+ 
++// Mavericks iTerm2: defined in product/iTermFamilyUpdaterPreferences.m.
++BOOL iTermFamilyUpdaterChecksAutomatically(void);
++void iTermSetFamilyUpdaterChecksAutomatically(BOOL checks);
++
+ @interface iTermCustomFolderTextFieldCell : NSTextFieldCell
+ @end
+ 
+@@ -187,13 +191,20 @@
                      key:kPreferenceKeyAddBonjourHostsToProfiles
                              type:kPreferenceInfoTypeCheckbox];
  
--    [self defineControl:_checkUpdate
--                    key:kPreferenceKeyCheckForUpdatesAutomatically
++    // Mavericks iTerm2: the family updater checks on its own schedule, so this checkbox is its
++    // setting, kept in its defaults domain (product/iTermFamilyUpdaterPreferences.m). The family
++    // has no channel of test releases.
+     [self defineControl:_checkUpdate
+                     key:kPreferenceKeyCheckForUpdatesAutomatically
 -                   type:kPreferenceInfoTypeCheckbox];
 -
 -    [self defineControl:_checkTestRelease
 -                    key:kPreferenceKeyCheckForTestReleases
 -                   type:kPreferenceInfoTypeCheckbox];
-+    // Mavericks iTerm2: the family updater owns its schedule; these Sparkle settings do nothing here.
-+    [_checkUpdate setHidden:YES];
++                   type:kPreferenceInfoTypeCheckbox
++         settingChanged:^(id sender) {
++             iTermSetFamilyUpdaterChecksAutomatically([sender state] == NSOnState);
++         }
++                 update:^BOOL {
++             _checkUpdate.state = iTermFamilyUpdaterChecksAutomatically() ? NSOnState : NSOffState;
++             return YES;
++         }];
 +    [_checkTestRelease setHidden:YES];
  
      // ---------------------------------------------------------------------------------------------
