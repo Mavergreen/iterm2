@@ -44,6 +44,12 @@ The family updater, not an embedded Sparkle, checks for and installs updates. `p
 
 Upstream's compiled MainMenu.nib instantiates a class named `SUUpdater` as Check for Updates' target. This build has no nib compiler, and editing the XIB would break the pairing with the compiled nib, so `product/SUUpdater.m` defines that class with only `checkForUpdates:`, which forwards to the app delegate. `product/iTermFamilyVersion.m` keeps the version ordering iTerm2's incompatible-software checks took from Sparkle.
 
+## Package
+
+`build/package-pkg.sh --app APP --updater-app UPDATER --version V --out DIR` makes `iterm2-V.pkg` with shipyard's stevedore seams: `dev.mavergreen.base` first, then `dev.mavergreen.iterm2`, with the 10.9.5 floor. It installs the app at `/Applications/Mavericks iTerm2.app` and the family updater with its daily-check agent; the tree `/usr/local/mavergreen/iterm2` holds only the manifest, since iTerm2 has no command-line tools. It refuses an app that is not `dev.mavergreen.iterm2.app`, is another version, or lacks `Contents/MacOS/restart-for-update`. `tests/package-test.sh` packages stand-ins on any host, and the native build's app when there is one, and runs shipyard's artifact conformance on each.
+
+`build/app-inventory.sh APP` prints what a native and a cross build of one commit must agree on: every file's path and, for each slice of each Mach-O (thinned out, since a reader given a universal file reads the host's own slice), digests of its load commands (kinds, dylibs, rpaths, minimum OS), undefined symbols and defined external symbols.
+
 ## Resources and the bundle
 
 The 29 nibs and the compiled Core Data model come from the release ZIP (`resources/compiled.tsv`, each at its measured size and SHA-256), staged by shipyard's `mavericks_extract_resource_members`, which also checks the ZIP's own version. Every other resource is copied from the pinned source as `resources/app-resources.tsv` lists. `resources/source-contract.json` records what is verified about the source-to-nib pairing and what is not.
