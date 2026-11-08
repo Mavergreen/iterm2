@@ -40,6 +40,7 @@
 # platform: warning flags are not copied: upstream sets no -Werror, so they change no outcome here.
 
 include("${CMAKE_CURRENT_LIST_DIR}/ITermMetadata.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ITermSourcePrefix.cmake")
 set(ITERM_TARGETS iTerm2 iTerm2Shared SSKeychain image_decoder)
 set(ITERM_ROW_iTerm2
   KIND executable  EXPORT_PREFIX ITERM2  ARC OFF  PREFIX_HEADER ""
@@ -135,6 +136,8 @@ function(iterm_add_targets)
     if(R_ARC)
       target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
     endif()
+    # platform: __FILE__ (assertions, logging) would otherwise carry the build host's path to the source
+    iterm_map_source_prefix(${t} "${A_SOURCE_DIR}" .)
     if(NOT "${R_PREFIX_HEADER}" STREQUAL "")
       if(NOT EXISTS "${A_SOURCE_DIR}/${R_PREFIX_HEADER}")
         message(FATAL_ERROR "iterm_add_targets: ${t}'s prefix header ${R_PREFIX_HEADER} is not in ${A_SOURCE_DIR}")

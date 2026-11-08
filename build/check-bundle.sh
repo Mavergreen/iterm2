@@ -93,6 +93,14 @@ for f in $macho; do
   else
     grep -iE 'growl|sparkle|nmssh|libssh2' "$APP.otool.$$" | while IFS= read -r l; do echo "$f loads $l"; done
   fi
+  # spec: BUILD.md "Resources and the bundle" -- every run-path search stays inside the bundle: an absolute
+  #       LC_RPATH names a directory of the build host that dyld would search on the user's Mac
+  if ! "$OTOOL" -l "$APP/$f" > "$APP.otool.$$" 2>/dev/null; then
+    echo "$OTOOL could not read the run paths of $f"
+  else
+    awk '$2 == "LC_RPATH" { r = 1; next } r && $1 == "path" { print $2; r = 0 }' "$APP.otool.$$" \
+      | grep -v '^@' | while IFS= read -r p; do echo "$f searches $p, outside the bundle"; done
+  fi
   # spec: BUILD.md "Dependency dispositions" -- no symbol of a dropped framework may remain referenced; the
   #       nib shim defines its own SUUpdater, so a defined SUUpdater is not a reference
   if ! "$NM" -u "$APP/$f" > "$APP.otool.$$" 2>/dev/null; then

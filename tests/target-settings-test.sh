@@ -88,6 +88,9 @@ if fixture ''; then
   has image_decoder COMPILE_OPTIONS -fobjc-arc || fail "image_decoder lacks ARC"
   hasnt iTerm2 COMPILE_OPTIONS -fobjc-arc || fail "iTerm2 has ARC"
   hasnt iTerm2 COMPILE_OPTIONS -include || fail "iTerm2 has a prefix header"
+  for t in iTerm2 iTerm2Shared SSKeychain image_decoder; do
+    has $t COMPILE_OPTIONS "-ffile-prefix-map=$S=." || fail "$t compiles the build host's source path into its __FILE__ strings"
+  done
   has iTerm2 INCLUDE_DIRECTORIES "$S;$S/ThirdParty" || fail "iTerm2's header search paths"
   has iTerm2Shared INCLUDE_DIRECTORIES "$S/sources" || fail "iTerm2Shared's exported include dirs"
   has iTerm2 LINK_LIBRARIES iTerm2Shared || fail "iTerm2 links iTerm2Shared directly"

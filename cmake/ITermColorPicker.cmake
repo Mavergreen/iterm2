@@ -19,6 +19,7 @@
 #           bundle assembly (BUILD.md "Resources and the bundle") owns the shipped plists.
 
 include("${CMAKE_CURRENT_LIST_DIR}/ITermMetadata.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ITermSourcePrefix.cmake")
 function(iterm_add_colorpicker)
   cmake_parse_arguments(A "" "SOURCES_FILE;SOURCE_DIR;SDK;RECIPES;METADATA_DIR" "" ${ARGN})
   if(A_UNPARSED_ARGUMENTS)
@@ -72,6 +73,7 @@ function(iterm_add_colorpicker)
     MACOSX_FRAMEWORK_IDENTIFIER com.googlecode.iterm2.ColorPicker
     C_STANDARD 99 C_EXTENSIONS ON OBJC_STANDARD 99 OBJC_EXTENSIONS ON)
   target_compile_options(ColorPicker PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
+  iterm_map_source_prefix(ColorPicker "${A_SOURCE_DIR}" ColorPicker)
   target_link_libraries(ColorPicker PRIVATE "-framework AppKit")
   # spec: BUILD.md "Build evidence" -- linkers find <ColorPicker/...> in the source too, so a unit that uses
   #       ColorPicker compiles (and is swept) even before the framework's Headers are copied
@@ -85,8 +87,10 @@ function(iterm_link_colorpicker)
     target_link_libraries(${t} PRIVATE ColorPicker)
     get_target_property(type ${t} TYPE)
     if(type STREQUAL "EXECUTABLE")
+      # platform: CMake adds the build tree's directories to an executable's run paths unless it links
+      #           with the install run path, and assemble-bundle.sh ships the linked executable as it is
       set_target_properties(${t} PROPERTIES
-        BUILD_RPATH "@executable_path/../Frameworks"
+        BUILD_WITH_INSTALL_RPATH ON
         INSTALL_RPATH "@executable_path/../Frameworks")
     endif()
   endforeach()

@@ -51,7 +51,7 @@ foreach(p INTERFACE_INCLUDE_DIRECTORIES RESOURCE TYPE FRAMEWORK FRAMEWORK_VERSIO
   string(APPEND r "ColorPicker \${p} \${v}\n")
 endforeach()
 foreach(t iTerm2Shared iTerm2)
-  foreach(p LINK_LIBRARIES BUILD_RPATH INSTALL_RPATH)
+  foreach(p LINK_LIBRARIES BUILD_WITH_INSTALL_RPATH INSTALL_RPATH)
     get_target_property(v \${t} \${p})
     string(APPEND r "\${t} \${p} \${v}\n")
   endforeach()
@@ -82,6 +82,8 @@ if fixture; then
   has ColorPicker INTERFACE_INCLUDE_DIRECTORIES "$S" \
     || fail "ColorPicker does not give its linkers <ColorPicker/...> headers from its source"
   has ColorPicker COMPILE_OPTIONS -fobjc-arc || fail "ColorPicker lacks ARC"
+  has ColorPicker COMPILE_OPTIONS "-ffile-prefix-map=$S=ColorPicker" \
+    || fail "ColorPicker compiles the build host's source path into its __FILE__ strings"
   has ColorPicker MACOSX_FRAMEWORK_IDENTIFIER com.googlecode.iterm2.ColorPicker || fail "ColorPicker's bundle id"
   has ColorPicker LINK_LIBRARIES '-framework AppKit' || fail "ColorPicker links AppKit"
   grep -q '^ColorPicker OSX_ARCHITECTURES .*NOTFOUND' "$T/b/report.txt" || has ColorPicker OSX_ARCHITECTURES x86_64 \
@@ -92,8 +94,9 @@ if fixture; then
   grep -q 'mmacosx-version-min\|10\.8' "$T/b/report.txt" && fail "ColorPicker sets its own deployment target"
   has iTerm2Shared LINK_LIBRARIES ColorPicker || fail "iTerm2Shared does not link ColorPicker"
   has iTerm2 LINK_LIBRARIES ColorPicker || fail "iTerm2 does not link ColorPicker"
-  has iTerm2 BUILD_RPATH '@executable_path/../Frameworks' && has iTerm2 INSTALL_RPATH '@executable_path/../Frameworks' \
-    || fail "iTerm2 does not find frameworks in @executable_path/../Frameworks"
+  has iTerm2 INSTALL_RPATH '@executable_path/../Frameworks' || fail "iTerm2 does not find frameworks in @executable_path/../Frameworks"
+  has iTerm2 BUILD_WITH_INSTALL_RPATH ON \
+    || fail "iTerm2 links with the build tree's run path, which names a directory of the build host"
   grep -q 'ColorPicker\.framework/\|ColorPickerDemo\|ColorPickerTests' "$T/b/report.txt" \
     && fail "a prebuilt, demo or test path is an input"
 else

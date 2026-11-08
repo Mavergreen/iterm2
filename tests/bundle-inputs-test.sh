@@ -117,6 +117,7 @@ if assemble "$T/good/iTerm2.app"; then
   bad otool-fails 'export OTOOL=/usr/bin/false'
   printf 'extern int NMSSHSessionConnect(void);\nint main(void) { return NMSSHSessionConnect(); }\n' > "$T/usenmssh.c"
   bad references-nmssh '"$CLANG22" -o "$B/MacOS/iTerm2" "$T/usenmssh.c" -Wl,-U,_NMSSHSessionConnect'
+  bad absolute-rpath '"$CLANG22" -o "$B/MacOS/iTerm2" "$T/main.c" -Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,/private/tmp/mm-build/iterm2'
 else
   cat "$T/log" >&2; fail "assemble-bundle.sh failed on the pinned inputs"
 fi
