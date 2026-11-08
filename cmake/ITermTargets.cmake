@@ -30,7 +30,8 @@
 #                  runtime leaves a subclass of a missing class unrealized, so each use must be guarded.
 #   DEPENDS        targets built first (Xcode target dependencies that are not links)
 #   METADATA       ON | OFF: the Recaulk SDK-metadata overlay for this target's Objective-C
-#   PRODUCT_SOURCES this product's own sources, relative to PRODUCT_DIR (product/SUUpdater.m, product/iTermFamilyVersion.m)
+#   PRODUCT_SOURCES this product's own sources, relative to PRODUCT_DIR (product/SUUpdater.m, product/iTermFamilyVersion.m,
+#                   product/iTermFamilyUpdaterPreferences.m)
 #   UPDATER_ID     ON: compile with ITERM_UPDATER_BUNDLE_ID="<UPDATER_BUNDLE_ID>" and
 #                  ITERM_RELEASES_URL="<RELEASES_URL>" (patch 0004's
 #                  checkForUpdates: is in iTermApplicationDelegate.m, which iTerm2Shared compiles)
@@ -53,7 +54,8 @@ set(ITERM_ROW_iTerm2
 set(ITERM_ROW_iTerm2Shared
   KIND static  EXPORT_PREFIX ITERM2_SHARED  ARC OFF  PREFIX_HEADER sources/iTerm2.pch
   C_STANDARD 99  C_EXTENSIONS ON
-  LINK SSKeychain  FRAMEWORKS Cocoa  METADATA ON  UPDATER_ID ON)
+  LINK SSKeychain  FRAMEWORKS Cocoa  METADATA ON  UPDATER_ID ON
+  PRODUCT_SOURCES iTermFamilyUpdaterPreferences.m)
 set(ITERM_ROW_SSKeychain
   KIND static  EXPORT_PREFIX SSKEYCHAIN  ARC ON  PREFIX_HEADER ThirdParty/SSKeychain/SSKeychain-Prefix.pch
   C_STANDARD 99  C_EXTENSIONS ON  FRAMEWORKS Cocoa  METADATA OFF)

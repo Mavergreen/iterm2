@@ -19,7 +19,7 @@ S="$T/src"; SDK="$T/sdk"
 mkdir -p "$S/sources" "$S/ThirdParty/SSKeychain" "$S/image_decoder" "$S/Model.xcdatamodeld" "$SDK/usr/lib"
 for f in sources/main.m sources/iTermApplication.m sources/Shared.m sources/vt100.c \
          ThirdParty/SSKeychain/SSKeychain.m image_decoder/image_decoder.m; do : > "$S/$f"; done
-mkdir -p "$T/product"; : > "$T/product/SUUpdater.m"; : > "$T/product/iTermFamilyVersion.m"
+mkdir -p "$T/product"; : > "$T/product/SUUpdater.m"; : > "$T/product/iTermFamilyVersion.m"; : > "$T/product/iTermFamilyUpdaterPreferences.m"
 : > "$S/sources/iTerm2.pch"; : > "$S/ThirdParty/SSKeychain/SSKeychain-Prefix.pch"
 for l in aprutil-1 icucore ncurses; do : > "$SDK/usr/lib/lib$l.dylib"; done
 : > "$SDK/usr/lib/libaprutil-1.tbd"
@@ -78,7 +78,7 @@ if fixture ''; then
     || fail "iTerm2Shared, which compiles iTermApplicationDelegate.m, lacks ITERM_UPDATER_BUNDLE_ID"
   has iTerm2Shared COMPILE_DEFINITIONS 'ITERM_RELEASES_URL="https://example.invalid/iterm2/releases"' \
     || fail "iTerm2Shared lacks ITERM_RELEASES_URL"
-  has iTerm2Shared SOURCES "$S/sources/Shared.m;$S/sources/vt100.c" || fail "iTerm2Shared's sources"
+  has iTerm2Shared SOURCES "$S/sources/Shared.m;$S/sources/vt100.c;$T/product/iTermFamilyUpdaterPreferences.m" || fail "iTerm2Shared's sources (with the updater preferences)"
   hasnt iTerm2Shared SOURCES xcdatamodeld || fail "the Core Data model is compiled"
   has SSKeychain SOURCES "$S/ThirdParty/SSKeychain/SSKeychain.m" || fail "SSKeychain's sources"
   has image_decoder SOURCES "$S/image_decoder/image_decoder.m" || fail "image_decoder's sources"

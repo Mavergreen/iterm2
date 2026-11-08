@@ -26,13 +26,6 @@ TAB=$(printf '\t')
 . "$SHIPYARD_SCRIPTS/lib/vercmp.sh"
 key=$(comparison_key "$VERSION") || die "no comparison key for $VERSION"
 
-cat="$SRC/Media.xcassets"
-[ "$(ls "$cat" | tr '\n' ' ')" = "AppIcon.appiconset Contents.json " ] \
-  || die "the asset catalog holds more than AppIcon ($(ls "$cat" | tr '\n' ' ')); this build makes only the app icon"
-icons='Contents.json icon_128x128.png icon_128x128@2x.png icon_16x16.png icon_16x16@2x.png icon_256x256.png icon_256x256@2x.png icon_32x32.png icon_32x32@2x.png icon_512x512.png icon_512x512@2x.png '
-[ "$(ls "$cat/AppIcon.appiconset" | tr '\n' ' ')" = "$icons" ] \
-  || die "AppIcon.appiconset is not the ten iconset sizes: $(ls "$cat/AppIcon.appiconset" | tr '\n' ' ')"
-
 mkdir -p "$(dirname "$OUT")"
 tmp=$(mktemp -d "$(dirname "$OUT")/.assemble.XXXXXX")   # platform: 10.9 BSD mktemp requires a template
 trap 'rm -rf "$tmp"' EXIT
@@ -49,9 +42,10 @@ done || die "a compiled resource is missing from $COMPILED"
 tail -n +2 "$REPO_ROOT/resources/app-resources.tsv" | while IFS="$TAB" read -r s d; do
   cp "$SRC/$s" "$A/Resources/$d" || exit 1
 done || die "a listed source resource is missing from $SRC"
-mkdir "$tmp/iTerm2.iconset"
-cp "$cat/AppIcon.appiconset/"icon_*.png "$tmp/iTerm2.iconset/"
-iconutil -c icns -o "$A/Resources/iTerm2.icns" "$tmp/iTerm2.iconset" || die "iconutil could not make iTerm2.icns"
+sh "$REPO_ROOT/build/make-icns.sh" "$SRC" "$A/Resources/iTerm2.icns" || die "no iTerm2.icns"
+# spec: BUILD.md "Resources and the bundle" -- the compiled MainMenu nib names the asset-catalog image
+#       AppIcon, which this bundle carries as AppIcon.icns, upstream's own icon again
+cp "$A/Resources/iTerm2.icns" "$A/Resources/AppIcon.icns"
 cp -R "$FW" "$A/Frameworks/ColorPicker.framework"
 chmod -R u+w,go-w "$A"
 find "$A/Resources" -type f ! -name image_decoder -exec chmod 644 {} +
