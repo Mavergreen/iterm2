@@ -1,0 +1,1 @@
+An ssh: or telnet: link whose user or host is not a plain name now opens nothing.

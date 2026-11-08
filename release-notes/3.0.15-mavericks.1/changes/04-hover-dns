@@ -1,0 +1,1 @@
+Holding Command over a URL no longer sends its host name to DNS (CVE-2015-9231).

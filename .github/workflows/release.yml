@@ -63,3 +63,212 @@ jobs:
           fi
           { echo "full=$full"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
           echo "version=$full publish=$rel"
+
+  build:
+    needs: ver
+    runs-on: macos-26
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - name: Build out of tree, at the version the ver job resolved
+        run: |
+          set -eu
+          { echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build"; echo "B=$RUNNER_TEMP/mm-build/iterm2-cross"; echo "E=$RUNNER_TEMP/evidence"; } >> "$GITHUB_ENV"
+          printf '%s\n' "${{ needs.ver.outputs.version }}" > VERSION
+      - name: Record the pre-build tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
+      - name: Install the pinned Longboat and its 10.9 SDK, then the pinned clang22-cross and Recaulk
+        run: |
+          set -eu
+          d="$RUNNER_TEMP/pinned"
+          pin() { tr -d '[:space:]' < "components/$1/version"; }
+          inst() { sudo installer -pkg "$1" -target / || { sudo tail -80 /var/log/install.log; exit 1; }; }
+          lb="$(pin longboat)"
+          inst "$(sh "$SHIPYARD_SCRIPTS/fetch-release-pkg.sh" longboat "$lb" "longboat-$lb.pkg" "$d")"
+          sudo /usr/local/mavergreen/longboat/bin/longboat sdk install 10.9
+          cl="$(pin clang22)"
+          inst "$(sh "$SHIPYARD_SCRIPTS/fetch-release-pkg.sh" clang-22 "$cl" "mavericks-clang-22-cross-$cl.pkg" "$d")"
+          rc="$(pin recaulk)"
+          inst "$(sh "$SHIPYARD_SCRIPTS/fetch-release-pkg.sh" recaulk "$rc" "recaulk-$rc.pkg" "$d")"
+      - name: Prepare the verified inputs
+        run: sh build/prepare-inputs.sh "$RUNNER_TEMP/inputs"
+      - name: Cross-build the app and its updater for x86_64 10.9, with the build's evidence
+        run: |
+          set -eu
+          shipyard-cmake --preset cross -B "$B" -DITERM_INPUTS_FILE="$RUNNER_TEMP/inputs/inputs.cmake"
+          sh build/record-build.sh "$B" "$E"
+      - name: The driver tests, packed for the 10.9 guest
+        run: |
+          set -eu
+          shipyard-cmake --build "$B" --target drivers
+          sh build/pack-drivers.sh "$B" "$RUNNER_TEMP/drivers.tar"
+      # spec: INGREDIENTS.md "Conformance deviations" macos-runner -- packaging runs on Linux; the app and
+      #       updater travel as a tar, which keeps their modes and the framework's symlinks
+      - name: Pack the app and the updater for packaging
+        run: COPYFILE_DISABLE=1 tar -cf "$RUNNER_TEMP/stage.tar" -C "$B" iTerm2.app iterm2-updater.app
+      # spec: BUILD.md "Updates" -- updater-test reads this cross build's app and updater
+      - name: Tests
+        env:
+          ITERM_BUILD_DIR: ${{ env.B }}
+        run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
+      - uses: actions/upload-artifact@v7
+        with: { name: stage, path: "${{ runner.temp }}/stage.tar" }
+      - uses: actions/upload-artifact@v7
+        with: { name: drivers, path: "${{ runner.temp }}/drivers.tar" }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: build-evidence, path: "${{ runner.temp }}/evidence" }
+      - name: The build must not have written into the source tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
+
+  collect:
+    needs: [ver, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - name: Where this job writes
+        run: echo "DIST=$RUNNER_TEMP/dist" >> "$GITHUB_ENV"
+      - name: Record the pre-package tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
+      - uses: actions/download-artifact@v8
+        with: { name: stage, path: "${{ runner.temp }}/in" }
+      - name: Package the app and the updater
+        run: |
+          set -eu
+          mkdir "$RUNNER_TEMP/stage"
+          tar -xf "$RUNNER_TEMP/in/stage.tar" -C "$RUNNER_TEMP/stage"
+          sh build/package-pkg.sh --app "$RUNNER_TEMP/stage/iTerm2.app" \
+            --updater-app "$RUNNER_TEMP/stage/iterm2-updater.app" \
+            --version "${{ needs.ver.outputs.version }}" --out "$DIST"
+      # spec: shipyard SKILL.md "Artifact conformance" -- off macOS, Mach-O is read with clang22's
+      - name: clang22's Mach-O readers for this Linux host
+        run: |
+          set -eu
+          CL="$(sh "$SHIPYARD_SCRIPTS/fetch_clang22.sh" components/clang22)"
+          { echo "LIPO=$CL/bin/llvm-lipo"; echo "OTOOL=$CL/bin/llvm-otool"; echo "NM=$CL/bin/llvm-nm"; echo "STRINGS=$CL/bin/llvm-strings"; } >> "$GITHUB_ENV"
+      - name: Ingredient pins are well declared
+        run: sh "$SHIPYARD_SCRIPTS/check-ingredient-pins.sh"
+      - name: Release notes
+        run: |
+          set -eu
+          V="${{ needs.ver.outputs.version }}"
+          sh "$SHIPYARD_SCRIPTS/release-notes.sh" --tag "$V" --version "$V" \
+            --product iTerm2 --min-os 10.9.5 --out "$DIST/RELEASE_NOTES.md"
+      - name: Record the declared state in the notes
+        run: |
+          set -eu
+          digest="$(sh "$SHIPYARD_SCRIPTS/release-state.sh")"
+          sh "$SHIPYARD_SCRIPTS/release-state-record.sh" --notes-file "$DIST/RELEASE_NOTES.md" --digest "$digest"
+      - name: Sign the pkg and write its feed
+        if: needs.ver.outputs.publish == 'yes'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          printenv SPARKLE_PRIVATE_KEY | grep -q . || { echo "::error::SPARKLE_PRIVATE_KEY is not visible to this repo"; exit 1; }
+          V="${{ needs.ver.outputs.version }}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$V"
+          sh "$SHIPYARD_SCRIPTS/sign_and_appcast.sh" --product iterm2 --feed-dir "$DIST" \
+            --channel-title "iTerm2 for Mavericks" --version "$V" --pkg-url "$base/iterm2-$V.pkg" \
+            --notes-file "$DIST/RELEASE_NOTES.md" --pkg "$DIST/iterm2-$V.pkg" --min-os 10.9.5
+      - name: Unsigned stand-in feed (never published)
+        if: needs.ver.outputs.publish != 'yes'
+        run: sh "$SHIPYARD_SCRIPTS/stand-in-feeds.sh" "$DIST" "${{ needs.ver.outputs.version }}"
+      - name: Artifact conformance
+        run: |
+          set -eu
+          facts="$(sh "$SHIPYARD_SCRIPTS/artifact-facts.sh" "$DIST" "${{ needs.ver.outputs.version }}")"
+          printf '%s\n' "$facts" | sh "$SHIPYARD_SCRIPTS/check-artifact-conformance.sh"
+      - name: The feed is an upgrade
+        if: needs.ver.outputs.publish == 'yes'
+        run: |
+          set -eu
+          sh "$SHIPYARD_SCRIPTS/assert_appcast_upgradeable.sh" --appcast "$DIST/iterm2.xml" \
+            --version "${{ needs.ver.outputs.version }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mavergreen-iterm2
+          path: |
+            ${{ runner.temp }}/dist/*.pkg
+            ${{ runner.temp }}/dist/RELEASE_NOTES.md
+            ${{ runner.temp }}/dist/*.xml
+      - name: Packaging must not have written into the source tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
+
+  vm-test:
+    needs: [ver, build, collect]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - uses: actions/download-artifact@v8
+        with: { name: mavergreen-iterm2, path: dist }
+      - uses: actions/download-artifact@v8
+        with: { name: drivers, path: "${{ runner.temp }}/in" }
+      - name: Bring the checksums, shipyard and the drivers into the workspace the guest gets
+        run: |
+          set -eu
+          (cd dist && sha256sum iterm2-*.pkg > SHA256SUMS)
+          cp -R "$(dirname "$SHIPYARD_SCRIPTS")" .shipyard
+          [ -f .shipyard/updater/updatecheck.plist.in ] || { echo "::error::no updater templates beside $SHIPYARD_SCRIPTS"; exit 1; }
+          cp "$RUNNER_TEMP/in/drivers.tar" drivers.tar
+          ls dist
+      # spec: INGREDIENTS.md "Conformance deviations" on-target:gui -- the guest has no GUI session; the
+      #       check has no skip path, so a 77 there fails, while run-repo-tests.sh inside it keeps 77 a skip
+      - name: Install the pkg on Mac OS X 10.9, check it, run the drivers and the repo's tests there
+        uses: Mavergreen/mavericks-vm@v1
+        env:
+          ITERM2_FULL_VERSION: ${{ needs.ver.outputs.version }}
+        with:
+          image-key: ${{ secrets.MAVERICKS_VM_KEY }}
+          cpu: '4'
+          mem: '8192'
+          envs: 'ITERM2_FULL_VERSION SHIPYARD_VERSION'
+          copyback: false
+          run: |
+            sw_vers
+            sudo -n true || { echo "the guest's user cannot sudo without a password, and installer needs root"; exit 1; }
+            export SHIPYARD_SCRIPTS="$PWD/.shipyard/scripts"
+            sh build/check-release-on-10.9.sh --drivers "$PWD/drivers.tar" --repo-tests --stand-in-upstream "$ITERM2_FULL_VERSION"
+
+  scan:
+    needs: [ver, collect]
+    if: always() && needs.ver.outputs.publish == 'yes'
+    permissions: { actions: read, contents: read }
+    uses: Mavergreen/shipyard/.github/workflows/scan-for-key.yml@v1
+    with: { artifact: mavergreen-iterm2 }
+    secrets: { SPARKLE_PRIVATE_KEY: "${{ secrets.SPARKLE_PRIVATE_KEY }}" }
+
+  publish:
+    needs: [ver, collect, scan, vm-test]
+    if: needs.ver.outputs.publish == 'yes'
+    permissions: { contents: write }
+    uses: Mavergreen/shipyard/.github/workflows/publish-release.yml@v1
+    with: { version: "${{ needs.ver.outputs.version }}", artifact: mavergreen-iterm2 }
+
+  retry:
+    needs: [ver, publish]
+    if: always() && needs.publish.result == 'failure'
+    permissions: { contents: read, actions: write }
+    uses: Mavergreen/shipyard/.github/workflows/retry-release.yml@v1
+    with: { version: "${{ needs.ver.outputs.version }}" }
+
+  required:
+    name: required (release)
+    if: always()
+    needs: [ver, build, collect, vm-test, scan, publish, retry]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Mavergreen/shipyard/.github/actions/required-gate@v1
+        with: { needs: "${{ toJSON(needs) }}" }

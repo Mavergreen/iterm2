@@ -1,0 +1,1 @@
+tmux integration no longer runs commands hidden in session names or stored options (CVE-2019-9535).
