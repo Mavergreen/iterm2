@@ -72,6 +72,8 @@ function(iterm_add_colorpicker)
     RESOURCE "${resources}"
     MACOSX_FRAMEWORK_IDENTIFIER com.googlecode.iterm2.ColorPicker
     C_STANDARD 99 C_EXTENSIONS ON OBJC_STANDARD 99 OBJC_EXTENSIONS ON)
+  # spec: BUILD.md "Targets" -- ColorPicker's Release configuration sets no GCC_OPTIMIZATION_LEVEL: Xcode's default, s
+  target_compile_options(ColorPicker PRIVATE -Os)
   target_compile_options(ColorPicker PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
   iterm_map_source_prefix(ColorPicker "${A_SOURCE_DIR}" ColorPicker)
   target_link_libraries(ColorPicker PRIVATE "-framework AppKit")

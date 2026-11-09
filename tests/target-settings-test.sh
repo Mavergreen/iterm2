@@ -90,6 +90,11 @@ if fixture ''; then
   has image_decoder COMPILE_OPTIONS -fobjc-arc || fail "image_decoder lacks ARC"
   hasnt iTerm2 COMPILE_OPTIONS -fobjc-arc || fail "iTerm2 has ARC"
   hasnt iTerm2 COMPILE_OPTIONS -include || fail "iTerm2 has a prefix header"
+  # spec: BUILD.md "Targets" -- optimized as upstream's Deployment build: the app -O3, the others Xcode's default -Os
+  has iTerm2 COMPILE_OPTIONS -O3 || fail "iTerm2 is not -O3, as upstream's Deployment"
+  for t in iTerm2Shared SSKeychain image_decoder; do
+    has $t COMPILE_OPTIONS -Os || fail "$t is not -Os, Xcode's default in upstream's Deployment"
+  done
   for t in iTerm2 iTerm2Shared SSKeychain image_decoder; do
     has $t COMPILE_OPTIONS "-ffile-prefix-map=$S=." || fail "$t compiles the build host's source path into its __FILE__ strings"
   done

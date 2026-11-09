@@ -19,6 +19,8 @@
 #   PREFIX_HEADER  GCC_PREFIX_HEADER, relative to SOURCE_DIR, or empty
 #   C_STANDARD     GCC_C_LANGUAGE_STANDARD: 99 with C_EXTENSIONS ON for gnu99, OFF for c99
 #   C_EXTENSIONS   ON | OFF
+#   OPTIMIZATION   GCC_OPTIMIZATION_LEVEL in the Deployment configuration (0, 1, 2, 3, s or z; unset there
+#                  means Xcode's default, s); compiled as -O<level>
 #   INCLUDES       HEADER_SEARCH_PATHS, relative to SOURCE_DIR
 #   LINK           in-tree targets linked directly (Xcode's libiTerm2Shared.a / libSSKeychain.a)
 #   FRAMEWORKS     SDK frameworks linked
@@ -45,7 +47,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/ITermSourcePrefix.cmake")
 set(ITERM_TARGETS iTerm2 iTerm2Shared SSKeychain image_decoder)
 set(ITERM_ROW_iTerm2
   KIND executable  EXPORT_PREFIX ITERM2  ARC OFF  PREFIX_HEADER ""
-  C_STANDARD 99  C_EXTENSIONS OFF  INCLUDES . ThirdParty
+  C_STANDARD 99  C_EXTENSIONS OFF  OPTIMIZATION 3  INCLUDES . ThirdParty
   LINK iTerm2Shared
   FRAMEWORKS OpenDirectory Security ScriptingBridge AppKit Carbon Quartz
   SDK_LIBS aprutil-1 icucore ncurses  LINK_OPTIONS -ObjC  DEPENDS image_decoder  METADATA ON
@@ -53,15 +55,15 @@ set(ITERM_ROW_iTerm2
   PRODUCT_SOURCES SUUpdater.m iTermFamilyVersion.m)
 set(ITERM_ROW_iTerm2Shared
   KIND static  EXPORT_PREFIX ITERM2_SHARED  ARC OFF  PREFIX_HEADER sources/iTerm2.pch
-  C_STANDARD 99  C_EXTENSIONS ON
+  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s
   LINK SSKeychain  FRAMEWORKS Cocoa  METADATA ON  UPDATER_ID ON
   PRODUCT_SOURCES iTermFamilyUpdaterPreferences.m)
 set(ITERM_ROW_SSKeychain
   KIND static  EXPORT_PREFIX SSKEYCHAIN  ARC ON  PREFIX_HEADER ThirdParty/SSKeychain/SSKeychain-Prefix.pch
-  C_STANDARD 99  C_EXTENSIONS ON  FRAMEWORKS Cocoa  METADATA OFF)
+  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s  FRAMEWORKS Cocoa  METADATA OFF)
 set(ITERM_ROW_image_decoder
   KIND executable  EXPORT_PREFIX IMAGE_DECODER  ARC ON  PREFIX_HEADER ""
-  C_STANDARD 99  C_EXTENSIONS ON  FRAMEWORKS Cocoa ApplicationServices
+  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s  FRAMEWORKS Cocoa ApplicationServices
   SDK_LIBS aprutil-1  METADATA ON)
 
 # spec: BUILD.md "Targets" -- the app's system links (frameworks, the SDK's own dylibs, linker options, weak
@@ -88,7 +90,7 @@ endfunction()
 # spec: BUILD.md "Build evidence" -- a driver test links the built iTerm2Shared with the app's row and
 #       compiles as iTerm2Shared does; it is never built with the app, only by the drivers target
 function(iterm_add_driver name)
-  cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;METADATA;UPDATER_ID"
+  cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
                         "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_iTerm2})
   set(t driver-${name})
   # platform: -ObjC loads every iTerm2Shared object, and some refer to symbols the app target compiles itself
@@ -150,7 +152,7 @@ function(iterm_add_targets)
 
   set(prefixes "")
   foreach(t IN LISTS ITERM_TARGETS)
-    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;METADATA;UPDATER_ID"
+    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
                           "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
     if(R_UNPARSED_ARGUMENTS)
       message(FATAL_ERROR "iterm_add_targets: ${t}'s row has settings this build does not apply: ${R_UNPARSED_ARGUMENTS}")
@@ -172,7 +174,7 @@ function(iterm_add_targets)
   endforeach()
 
   foreach(t IN LISTS ITERM_TARGETS)
-    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;METADATA;UPDATER_ID"
+    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
                           "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
     set(P "${R_EXPORT_PREFIX}")
     if(NOT ${P}_SOURCES)
@@ -205,6 +207,10 @@ function(iterm_add_targets)
     set_target_properties(${t} PROPERTIES
       C_STANDARD ${R_C_STANDARD} C_EXTENSIONS ${R_C_EXTENSIONS}
       OBJC_STANDARD ${R_C_STANDARD} OBJC_EXTENSIONS ${R_C_EXTENSIONS})
+    if(NOT R_OPTIMIZATION MATCHES "^[0123sz]$")
+      message(FATAL_ERROR "iterm_add_targets: ${t}'s row names no OPTIMIZATION (its Deployment GCC_OPTIMIZATION_LEVEL)")
+    endif()
+    target_compile_options(${t} PRIVATE "-O${R_OPTIMIZATION}")
     if(R_UPDATER_ID)
       target_compile_definitions(${t} PRIVATE "ITERM_UPDATER_BUNDLE_ID=\"${A_UPDATER_BUNDLE_ID}\""
                                                 "ITERM_RELEASES_URL=\"${A_RELEASES_URL}\"")
