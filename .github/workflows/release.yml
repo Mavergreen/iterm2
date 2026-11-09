@@ -1,8 +1,10 @@
 name: release
 
 on:
+  # spec: shipyard SKILL.md "Creating a family repo" -- a branch builds too (the ver job publishes only
+  #       from main), so a first push to a branch proves CI before main exists
   push:
-    branches: [main]
+    branches-ignore: ['renovate/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
