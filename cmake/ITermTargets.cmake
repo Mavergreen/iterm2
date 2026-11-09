@@ -94,7 +94,10 @@ function(iterm_add_driver name)
   # platform: -ObjC loads every iTerm2Shared object, and some refer to symbols the app target compiles itself
   #           (its own sources and the product's), so a driver compiles those too, all but main.m
   add_executable(${t} EXCLUDE_FROM_ALL ${ARGN} "$<FILTER:$<TARGET_PROPERTY:iTerm2,SOURCES>,EXCLUDE,/main\\.m$>")
-  set_target_properties(${t} PROPERTIES OBJC_STANDARD ${R_C_STANDARD} OBJC_EXTENSIONS ON)
+  # spec: BUILD.md "Acceptance on 10.9" -- packed for the 10.9 guest, a driver finds ColorPicker.framework
+  #       beside it, as well as in the build directory
+  set_target_properties(${t} PROPERTIES OBJC_STANDARD ${R_C_STANDARD} OBJC_EXTENSIONS ON
+    BUILD_RPATH "@executable_path/.;${CMAKE_BINARY_DIR}")
   target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "$<TARGET_PROPERTY:iTerm2Shared,INCLUDE_DIRECTORIES>")
   target_compile_options(${t} PRIVATE "$<TARGET_PROPERTY:iTerm2Shared,COMPILE_OPTIONS>")
   # platform: a message to a method the class does not declare is only a warning in Objective-C; a driver
