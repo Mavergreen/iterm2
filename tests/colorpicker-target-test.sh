@@ -75,6 +75,8 @@ if fixture; then
   has ColorPicker FRAMEWORK_VERSION A || fail "ColorPicker's framework version is not A"
   has ColorPicker INSTALL_NAME_DIR @rpath || fail "ColorPicker's install name is not under @rpath"
   has ColorPicker OUTPUT_NAME ColorPicker || fail "ColorPicker's product name"
+  # spec: BUILD.md "Targets" -- ColorPicker optimized as upstream's Release build, at Xcode's default -Os
+  has ColorPicker COMPILE_OPTIONS -Os || fail "ColorPicker is not -Os, Xcode's default in upstream's Release"
   has ColorPicker SOURCES "$S/ColorPicker/CPKColorWell.m;$S/ColorPicker/CPKPopover.m" || fail "ColorPicker's sources"
   has ColorPicker PUBLIC_HEADER "$S/ColorPicker/ColorPicker.h;$S/ColorPicker/CPKColorWell.h;$S/ColorPicker/CPKPopover.h" \
     || fail "ColorPicker's public headers"

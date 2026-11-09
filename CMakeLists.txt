@@ -96,6 +96,7 @@ endif()
 # spec: BUILD.md "Updates" -- the family updater's post-update helper, shipped in the app's MacOS/.
 add_executable(restart-for-update "${CMAKE_CURRENT_SOURCE_DIR}/product/restart-for-update.m")
 target_link_libraries(restart-for-update PRIVATE "-framework Cocoa")
+target_compile_options(restart-for-update PRIVATE -Os)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermResources.cmake")
 iterm_add_bundle(
