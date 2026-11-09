@@ -63,8 +63,8 @@
       "matchDepNames": [
         "gnachman/iTerm2"
       ],
-      "allowedVersions": "<3.1",
-      "description": "Capped at 3.0.x: 3.1.0 requires OS X 10.10 (iterm2.com/downloads), and a build passing is not evidence of everyday use on 10.9. The cap ends when a newer upstream passes the Mavericks acceptance suite (spec: 2026-10-31-iterm2-design.md, advancement)."
+      "allowedVersions": "/^v?3\\.0\\.[0-9]{1,2}$/",
+      "description": "Capped at 3.0.x releases: 3.1.0 requires OS X 10.10 (iterm2.com/downloads), and a build passing is not evidence of everyday use on 10.9. Upstream's old date-stamped tag v3.0.20160531 sorts above 3.0.15 but is no release, so only a one- or two-digit patch is allowed. The cap ends when a newer upstream passes the Mavericks acceptance suite (spec: 2026-10-31-iterm2-design.md, advancement)."
     },
     {
       "description": "Renovate moves components/clang22/version but cannot write the Linux archive's digest beside it, which fetch_clang22.sh needs on Linux.",
