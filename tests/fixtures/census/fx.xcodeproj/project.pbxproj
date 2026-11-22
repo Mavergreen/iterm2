@@ -1,0 +1,48 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+		B00000000000000000000001 /* ok.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000001; };
+		B00000000000000000000002 /* gap.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002; };
+		B00000000000000000000003 /* hdr.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000003; };
+		B00000000000000000000004 /* dup1.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004; };
+		B00000000000000000000005 /* dup2.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000005; };
+		B00000000000000000000006 /* lib.m */ = {isa = PBXBuildFile; fileRef = F00000000000000000000006; };
+		F00000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ok.m; sourceTree = "<group>"; };
+		F00000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = gap.m; sourceTree = "<group>"; };
+		F00000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = hdr.m; sourceTree = "<group>"; };
+		F00000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = dup1.m; sourceTree = "<group>"; };
+		F00000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = dup2.m; sourceTree = "<group>"; };
+		F00000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = lib.m; sourceTree = "<group>"; };
+		F00000000000000000000007 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00000000000000000000008 = {isa = PBXFileReference; explicitFileType = archive.ar; path = libLib.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		G00000000000000000000001 /* main */ = {isa = PBXGroup; children = (G00000000000000000000002, G00000000000000000000003, G00000000000000000000004, ); sourceTree = "<group>"; };
+		G00000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (F00000000000000000000001, F00000000000000000000002, F00000000000000000000003, F00000000000000000000004, F00000000000000000000005, ); path = Sources; sourceTree = "<group>"; };
+		G00000000000000000000003 /* Lib */ = {isa = PBXGroup; children = (F00000000000000000000006, ); path = Lib; sourceTree = "<group>"; };
+		G00000000000000000000004 /* Products */ = {isa = PBXGroup; children = (F00000000000000000000007, F00000000000000000000008, ); name = Products; sourceTree = "<group>"; };
+		S00000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, ); runOnlyForDeploymentPostprocessing = 0; };
+		S00000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000006, ); runOnlyForDeploymentPostprocessing = 0; };
+		T00000000000000000000001 /* App */ = {isa = PBXNativeTarget; buildConfigurationList = C00000000000000000000001; buildPhases = (S00000000000000000000001, ); buildRules = (); dependencies = (); name = App; productName = App; productReference = F00000000000000000000007; productType = "com.apple.product-type.application"; };
+		T00000000000000000000002 /* Lib, laid out over lines as Xcode writes it */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C00000000000000000000001;
+			buildPhases = (
+				S00000000000000000000002,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Lib;
+			productName = Lib;
+			productReference = F00000000000000000000008;
+			productType = "com.apple.product-type.library.static";
+		};
+		C00000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (); defaultConfigurationIsVisible = 0; };
+		P00000000000000000000001 = {isa = PBXProject; buildConfigurationList = C00000000000000000000001; compatibilityVersion = "Xcode 3.2"; mainGroup = G00000000000000000000001; productRefGroup = G00000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (T00000000000000000000001, T00000000000000000000002, ); };
+	};
+	rootObject = P00000000000000000000001;
+}

@@ -13,7 +13,19 @@ iTerm2 3.0.15 builds for Mac OS X 10.9 (x86_64, minimum 10.9, the pinned 10.9 SD
 
 Pin files are data: each value must match its pattern, and none is evaluated. A failure leaves no inputs file behind. The outputs live outside the checkout.
 
+A candidate upstream is prepared through the same path. `ITERM_PINS_DIR` names a directory, outside the checkout, holding its `components/iterm2/version`, `components/iterm2-resources/version` and `UPSTREAM_VERSION`, and `ITERM_PATCHES_DIR` its patches (it may be empty). The shipping pins are never read for those and never change. clang22, Recaulk and shipyard stay this checkout's pins, and `inputs.json` records both directories.
+
 Configure receives `inputs.cmake` as `ITERM_INPUTS_FILE` (the presets set it). `cmake/ITermInputs.cmake` reads it before `project()` and selects its clang22 for C and Objective-C, refusing any other compiler; after `project()` the detected compiler must be the pinned clang22's version. Apple clang on 10.9 cannot parse the sources' Objective-C generics, so `MAVERICKS_REQUIRE_APPLECLANG` is off; the mode, SDK and compatibility gates stay.
+
+## Census
+
+`build/census.sh INPUTS_ROOT SETTINGS_FILE OUT_DIR` measures how far a candidate upstream is from Mavericks. It compiles every source of the targets that `SETTINGS_FILE` names with the shipping build's clang22, pinned 10.9 SDK and Recaulk metadata, keeps going past failures, and writes three tables:
+
+- `census.tsv`: each source's status and its first error's kind and symbol;
+- `summary.tsv`: per target, the number of sources compiled, ok and failing;
+- `symbols.tsv`: each missing symbol, with how many sources it breaks.
+
+The settings file is data, one block per Xcode target, copied by hand from that candidate's project the way the rows in `cmake/ITermTargets.cmake` are (keys in `cmake/ITermCensus.cmake`). A target with no block is not compiled, and a block for a target the project lacks is refused. 3.0.15 with its patches is the control: it compiles with no errors, so what a candidate's census reports is the candidate's, not the census's. The census needs Ninja, and runs natively on 10.9 or cross on a modern Mac.
 
 ## Targets
 

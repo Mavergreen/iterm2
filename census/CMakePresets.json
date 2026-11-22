@@ -1,0 +1,11 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "include": ["/usr/local/mavergreen/shipyard/share/cmake/MavericksShipyard/mavericks-presets.json"],
+  "configurePresets": [
+    { "name": "native", "inherits": ["mavericks-native"], "generator": "Ninja",
+      "displayName": "native -- the census on Mavericks 10.9, with the verified installed clang22" },
+    { "name": "cross", "inherits": ["mavericks-cross"], "generator": "Ninja",
+      "displayName": "cross -- the census on a modern Mac, with the verified installed clang22-cross" }
+  ]
+}
