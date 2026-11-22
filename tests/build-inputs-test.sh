@@ -222,5 +222,21 @@ rm "$T/repo/candidates/9.0/targets.cmake"
 if candidate 9.0; then fail "candidate_without_table_refused: accepted"; fi
 grep -q 'targets table' "$T/log" || fail "candidate_without_table_refused: $(tail -1 "$T/log")"
 
+# spec: candidates/README.md -- a candidate's pins and its patches only ever travel together, and the build
+#       judges deleted sources by the patches that were applied, never the shipping ones
+fresh_repo; cand_pins "$T/repo/candidates/9.0"; mkdir -p "$T/repo/candidates/9.0/patches" "$T/repo/candidates/9.1/patches"
+candidate 9.0 || fail "patches_dir_in_inputs: candidate.sh failed"
+[ "$(cmake_var ITERM_PATCHES_DIR)" = "$T/repo/candidates/9.0/patches" ] || fail "patches_dir_in_inputs: candidate's is $(cmake_var ITERM_PATCHES_DIR)"
+prepare || fail "patches_dir_in_inputs: shipping prepare failed"
+[ "$(cmake_var ITERM_PATCHES_DIR)" = "$T/repo/patches" ] || fail "patches_dir_in_inputs: shipping's is $(cmake_var ITERM_PATCHES_DIR)"
+if cand "" "$T/repo/candidates/9.0/patches"; then fail "candidate_patches_without_pins_refused: accepted"; fi
+grep -q 'travel together' "$T/log" || fail "candidate_patches_without_pins_refused: $(tail -1 "$T/log")"
+if cand "$T/repo/candidates/9.0" "$T/repo/candidates/9.1/patches"; then fail "candidate_pins_with_other_patches_refused: accepted"; fi
+grep -q 'travel together' "$T/log" || fail "candidate_pins_with_other_patches_refused: $(tail -1 "$T/log")"
+if cand "$T/repo/candidates/9.0" "$T/nopatches"; then fail "candidate_pins_with_outside_patches_refused: accepted"; fi
+grep -q 'travel together' "$T/log" || fail "candidate_pins_with_outside_patches_refused: $(tail -1 "$T/log")"
+mkdir -p "$T/repo/candidates/9.0/x/patches"
+if cand "$T/repo/candidates/9.0/x" "$T/repo/candidates/9.0/x/patches"; then fail "nested_candidate_refused: accepted"; fi
+
 [ "$fails" -eq 0 ] || { echo "build-inputs-test: $fails failure(s)" >&2; exit 1; }
 echo "build-inputs-test: OK"

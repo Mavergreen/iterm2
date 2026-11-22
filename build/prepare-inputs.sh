@@ -50,6 +50,18 @@ PINS_DIR=$REPO_ROOT
 [ -z "${ITERM_PINS_DIR:-}" ] || PINS_DIR=$(outside ITERM_PINS_DIR "$ITERM_PINS_DIR")
 PATCHES_DIR=$REPO_ROOT/patches
 [ -z "${ITERM_PATCHES_DIR:-}" ] || PATCHES_DIR=$(outside ITERM_PATCHES_DIR "$ITERM_PATCHES_DIR")
+# spec: candidates/README.md -- a tracked candidate's pins and patches only ever travel together:
+#       candidates/<v> with candidates/<v>/patches, never one without the other or with anything else
+_r=$(CDPATH= cd "$REPO_ROOT" && pwd -P)
+case "$PINS_DIR/|$PATCHES_DIR/" in
+  "$_r/candidates/"*|*"|$_r/candidates/"*)
+    _seg=${PINS_DIR#"$_r/candidates/"}
+    case "$PINS_DIR" in "$_r/candidates/"*) ;; *) _seg=/ ;; esac
+    case "$_seg" in ''|*/*) die "a candidate's pins and patches travel together (candidates/<v> and candidates/<v>/patches): ITERM_PINS_DIR=${ITERM_PINS_DIR:-} ITERM_PATCHES_DIR=${ITERM_PATCHES_DIR:-}" ;; esac
+    [ "$PATCHES_DIR" = "$PINS_DIR/patches" ] \
+      || die "a candidate's pins and patches travel together (candidates/<v> and candidates/<v>/patches): ITERM_PINS_DIR=${ITERM_PINS_DIR:-} ITERM_PATCHES_DIR=${ITERM_PATCHES_DIR:-}"
+    ;;
+esac
 ROOT=${MAVERGREEN_ROOT:-/}
 ROOT=${ROOT%/}
 CACHE=${MAVERICKS_SOURCE_CACHE:-$HOME/Library/Caches/mavericks-sources}
@@ -152,6 +164,7 @@ done
   echo "set(ITERM_DEPENDENCY_MANIFEST [==[$deps]==])"
   echo "set(ITERM_MODE [==[$mode]==])"
   echo "set(ITERM_TARGETS_FILE [==[$targets]==])"
+  echo "set(ITERM_PATCHES_DIR [==[$PATCHES_DIR]==])"
 } > "$OUT/inputs.cmake.tmp"
 cat > "$OUT/inputs.json.tmp" <<EOF
 {
