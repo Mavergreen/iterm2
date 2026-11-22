@@ -238,5 +238,35 @@ else
 fi
 rm "$T/patches/0099-delete-gone.patch"; cp "$T/sources.keep" "$T/sources.cmake"
 
+# spec: candidates/README.md "3.2.9" -- 10.9 has no Metal: the export's not-compiled .metal files are left
+#       out, any other not-compiled type is refused by name, and a row can leave out sources and add defines
+cp "$T/sources.cmake" "$T/sources.keep"
+echo 'set(ITERM2_NOT_COMPILED [[sourcecode.metal:sources/Shaders/Cell.metal]])' >> "$T/sources.cmake"
+if fixture ''; then
+  hasnt iTerm2 SOURCES Cell.metal || fail "not_compiled_metal_left_out: Cell.metal is a source"
+else
+  tail -5 "$T/log" >&2; fail "not_compiled_metal_left_out: refused"
+fi
+cp "$T/sources.keep" "$T/sources.cmake"
+echo 'set(ITERM2_NOT_COMPILED [[sourcecode.glsl:sources/Shaders/Cell.glsl]])' >> "$T/sources.cmake"
+fixture '' && fail "not_compiled_other_type_refused: accepted" \
+  || grep -q 'sourcecode.glsl:sources/Shaders/Cell.glsl' "$T/log" || fail "not_compiled_other_type_refused: the refusal does not name the entry"
+cp "$T/sources.keep" "$T/sources.cmake"
+if fixture 'list(APPEND ITERM_ROW_iTerm2 EXCLUDE_SOURCES sources/iTermApplication.m)'; then
+  hasnt iTerm2 SOURCES iTermApplication.m || fail "row_exclude_sources: iTermApplication.m is still a source"
+  has iTerm2 SOURCES main.m || fail "row_exclude_sources: main.m was dropped too"
+else
+  tail -5 "$T/log" >&2; fail "row_exclude_sources: refused"
+fi
+fixture 'list(APPEND ITERM_ROW_iTerm2 EXCLUDE_SOURCES sources/Nope.m)' && fail "exclude_sources_stale_refused: accepted" \
+  || grep -q 'sources/Nope.m' "$T/log" || fail "exclude_sources_stale_refused: the refusal does not name sources/Nope.m"
+if fixture 'list(APPEND ITERM_ROW_iTerm2Shared DEFINES ITERM_NO_METAL)'; then
+  has iTerm2Shared COMPILE_DEFINITIONS ITERM_NO_METAL || fail "row_defines: no ITERM_NO_METAL"
+else
+  tail -5 "$T/log" >&2; fail "row_defines: refused"
+fi
+fixture 'list(APPEND ITERM_ROW_iTerm2Shared DEFINES "A -O0")' && fail "row_defines_validated: accepted" \
+  || grep -q 'A -O0' "$T/log" || fail "row_defines_validated: the refusal does not name the define"
+
 [ "$fails" -eq 0 ] || { echo "target-settings-test: $fails failure(s)" >&2; exit 1; }
 echo "target-settings-test: OK"

@@ -5,7 +5,9 @@
 #                   UPDATER_BUNDLE_ID <id> RELEASES_URL <https url> PRODUCT_DIR <abs>)
 #   SOURCES_FILE is what mavericks_export_xcode_sources wrote: per target, <P>_SOURCES (code),
 #   <P>_MODELS (Core Data models, never compiled; the release's compiled model is a resource), and
-#   <P>_INCLUDE_DIRS, <P>_*HEADERS, <P>_*RESOURCES. Any other variable it defines is refused, never
+#   <P>_INCLUDE_DIRS, <P>_*HEADERS, <P>_*RESOURCES, and <P>_NOT_COMPILED (<file type>:<path>, files the
+#   exporter knows but does not compile; only sourcecode.metal, which is left out: 10.9 has no Metal, and
+#   any other type is refused). Any other variable it defines is refused, never
 #   dropped. Each target's settings are one row below, copied from that target's Deployment
 #   configuration in the pinned iTerm2.xcodeproj (and the project-level row where the target sets
 #   none); an unknown key in a row is refused.
@@ -36,6 +38,9 @@
 #   METADATA       ON | OFF: the Recaulk SDK-metadata overlay for this target's Objective-C
 #   OBJC_WEAK      ON: CLANG_ENABLE_OBJC_WEAK (-fobjc-weak, __weak under manual reference counting)
 #   CXX_STANDARD   CLANG_CXX_LANGUAGE_STANDARD for C++ and Objective-C++ (gnu++0x is gnu++11)
+#   EXCLUDE_SOURCES exported sources this build leaves out, relative to SOURCE_DIR; each must be one the
+#                  export lists for the target, so a stale exclusion is refused
+#   DEFINES        preprocessor definitions this build adds (NAME or NAME=VALUE), e.g. ITERM_NO_METAL
 #   PRODUCT_SOURCES this product's own sources, relative to PRODUCT_DIR (product/SUUpdater.m, product/iTermFamilyVersion.m,
 #                   product/iTermFamilyUpdaterPreferences.m)
 #   UPDATER_ID     ON: compile with ITERM_UPDATER_BUNDLE_ID="<UPDATER_BUNDLE_ID>" and
@@ -55,7 +60,7 @@ if(NOT IS_ABSOLUTE "${ITERM_TARGETS_FILE}" OR NOT EXISTS "${ITERM_TARGETS_FILE}"
 endif()
 include("${ITERM_TARGETS_FILE}")
 set(_ITERM_ROW_ONE "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID;OBJC_WEAK;CXX_STANDARD")
-set(_ITERM_ROW_MANY "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES")
+set(_ITERM_ROW_MANY "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES;EXCLUDE_SOURCES;DEFINES")
 
 # spec: BUILD.md "Targets" -- the exporter's TARGETS and PREFIXES, read from the same rows the build applies
 function(iterm_export_lists targets_out prefixes_out)
@@ -168,7 +173,7 @@ function(iterm_add_targets)
     if(v IN_LIST before OR v STREQUAL "before")
       continue()
     endif()
-    if(NOT v MATCHES "^(${prefix_re})_(SOURCES|MODELS|INCLUDE_DIRS|[A-Z_]*HEADERS|[A-Z_]*RESOURCES)$")
+    if(NOT v MATCHES "^(${prefix_re})_(SOURCES|MODELS|INCLUDE_DIRS|NOT_COMPILED|[A-Z_]*HEADERS|[A-Z_]*RESOURCES)$")
       message(FATAL_ERROR "iterm_add_targets: ${A_SOURCES_FILE} defines ${v}, which this build does not apply")
     endif()
   endforeach()
@@ -179,8 +184,22 @@ function(iterm_add_targets)
     if(NOT ${P}_SOURCES)
       message(FATAL_ERROR "iterm_add_targets: ${A_SOURCES_FILE} lists no ${P}_SOURCES for ${t}")
     endif()
+    # platform: 10.9 has no Metal; a .metal file is a shader for the renderer this build leaves out
+    foreach(n IN LISTS ${P}_NOT_COMPILED)
+      if(NOT n MATCHES "^sourcecode\\.metal:.")
+        message(FATAL_ERROR "iterm_add_targets: ${A_SOURCES_FILE} lists ${n} as not compiled for ${t}; this build leaves out only sourcecode.metal")
+      endif()
+    endforeach()
+    foreach(x IN LISTS R_EXCLUDE_SOURCES)
+      if(NOT x IN_LIST ${P}_SOURCES)
+        message(FATAL_ERROR "iterm_add_targets: ${t}'s row excludes ${x}, which ${A_SOURCES_FILE} does not list for it")
+      endif()
+    endforeach()
     set(srcs "")
     foreach(s IN LISTS ${P}_SOURCES)
+      if(s IN_LIST R_EXCLUDE_SOURCES)
+        continue()
+      endif()
       if(NOT EXISTS "${A_SOURCE_DIR}/${s}")
         _iterm_patch_deletes(deleted "${A_PATCH_DIR}" "${s}")
         if(deleted)
@@ -210,6 +229,12 @@ function(iterm_add_targets)
       message(FATAL_ERROR "iterm_add_targets: ${t}'s row names no OPTIMIZATION (its Deployment GCC_OPTIMIZATION_LEVEL)")
     endif()
     target_compile_options(${t} PRIVATE "-O${R_OPTIMIZATION}")
+    foreach(d IN LISTS R_DEFINES)
+      if(NOT d MATCHES "^[A-Za-z_][A-Za-z0-9_]*(=[^ ]*)?$")
+        message(FATAL_ERROR "iterm_add_targets: ${t}'s DEFINES entry '${d}' is not NAME or NAME=VALUE")
+      endif()
+      target_compile_definitions(${t} PRIVATE "${d}")
+    endforeach()
     if(R_UPDATER_ID)
       target_compile_definitions(${t} PRIVATE "ITERM_UPDATER_BUNDLE_ID=\"${A_UPDATER_BUNDLE_ID}\""
                                                 "ITERM_RELEASES_URL=\"${A_RELEASES_URL}\"")

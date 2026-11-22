@@ -30,5 +30,5 @@ then measure what it still needs from Mavericks:
 Chosen by the maintainer on 2026-11-22; the research is in `recommendation.md` under
 `.superpowers/research/2026-11-22-upstream-boundary/` (not tracked). Shipping patches 0001, 0007, 0010
 and 0011 apply unchanged; 0002, 0005 and 0009 are upstream's own code by 3.2.9; 0003, 0004, 0006, 0008 and
-0012 must be ported again. Its census exports nothing yet: shipyard's Xcode exporter refuses
-`sourcecode.metal` sources, and lists them as not compiled once its queued fix lands.
+0012 must be ported again. shipyard's exporter (v1.0.810 and later) lists the Metal shaders as not
+compiled; the build leaves them out, since 10.9 has no Metal. The census compiles 515 files.
