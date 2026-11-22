@@ -151,5 +151,41 @@ SHIPYARD_SCRIPTS="$T/shipyard/scripts" MAVERGREEN_ROOT="$T/root" MAVERICKS_CODEL
 printf 'file(READ "%s" j)\nstring(JSON v GET "${j}" source dir)\nmessage("${v}")\n' "$Q/inputs.json" | sed 's/quote"dir/quote\\"dir/' > "$T/json.cmake"
 [ "$(/usr/local/mavergreen/bin/shipyard-cmake -P "$T/json.cmake" 2>&1)" = "$Q/source" ] || fail "quote: inputs.json is not valid JSON for a path with a quote"
 
+# spec: BUILD.md "Inputs" -- a candidate upstream is prepared through this same path, with its pins from
+#       ITERM_PINS_DIR and its patches from ITERM_PATCHES_DIR, and the shipping pins never move.
+DIGEST2=1111111111111111111111111111111111111111
+mkdir -p "$T/src/iTerm2-$DIGEST2/image_decoder"
+printf 'candidate\n' > "$T/src/iTerm2-$DIGEST2/image_decoder/image_decoder.m"
+(cd "$T/src" && COPYFILE_DISABLE=1 tar -czf "$T/codeload/gnachman/iTerm2/tar.gz/$DIGEST2" "iTerm2-$DIGEST2")
+SRC2_SHA=$(shasum -a 256 "$T/codeload/gnachman/iTerm2/tar.gz/$DIGEST2" | cut -d' ' -f1)
+cand_pins() { # dir
+  rm -rf "$1"; mkdir -p "$1/components/iterm2" "$1/components/iterm2-resources"
+  printf 'REPO=https://github.com/gnachman/iTerm2\nREF=v3.1.7\nDIGEST=%s\nSHA256=%s\n' "$DIGEST2" "$SRC2_SHA" \
+    > "$1/components/iterm2/version"
+  printf 'URL=file://%s\nSHA256=%s\nVERSION=3.1.7\n' "$T/resources.zip" "$RES_SHA" > "$1/components/iterm2-resources/version"
+  echo 3.1.7 > "$1/UPSTREAM_VERSION"
+}
+cand() { # pins-dir patches-dir
+  ITERM_PINS_DIR="$1" ITERM_PATCHES_DIR="$2" SHIPYARD_SCRIPTS="$T/shipyard/scripts" MAVERGREEN_ROOT="$T/root" \
+  MAVERICKS_CODELOAD="file://$T/codeload" MAVERICKS_SOURCE_CACHE="$T/cache" \
+    sh "$T/repo/build/prepare-inputs.sh" "$T/out" >"$T/log" 2>&1
+}
+fresh_repo; cand_pins "$T/pins"; mkdir -p "$T/nopatches"; before=$(snapshot)
+cand "$T/pins" "$T/nopatches" || { cat "$T/log" >&2; fail "pins_dir_overrides_source_pins: prepare failed"; }
+grep -q '"ref": "v3.1.7"' "$T/out/inputs.json" 2>/dev/null || fail "pins_dir_overrides_source_pins: inputs.json does not name v3.1.7"
+[ "$(cat "$T/out/source/.mavergreen-source" 2>/dev/null)" = "https://github.com/gnachman/iTerm2 $DIGEST2 $SRC2_SHA" ] \
+  || fail "pins_dir_overrides_source_pins: the source is not the candidate's"
+[ "$before" = "$(snapshot)" ] || fail "pins_dir_overrides_source_pins: the checkout changed"
+grep -q "\"pins_dir\": \"$T/pins\"" "$T/out/inputs.json" 2>/dev/null || fail "pins_dir_overrides_source_pins: inputs.json does not record pins_dir"
+[ "$(cat "$T/out/source/image_decoder/image_decoder.m" 2>/dev/null)" = candidate ] \
+  || fail "patches_dir_empty_applies_nothing: the candidate source was patched"
+grep -q '"patches": \[\]' "$T/out/inputs.json" 2>/dev/null || fail "patches_dir_empty_applies_nothing: inputs.json lists patches"
+fresh_repo; cand_pins "$T/pins"
+if cand pins "$T/nopatches"; then fail "pins_dir_relative_refused: accepted"; fi
+grep -q 'ITERM_PINS_DIR must be absolute' "$T/log" || fail "pins_dir_relative_refused: $(tail -1 "$T/log")"
+fresh_repo; cand_pins "$T/repo/cand"
+if cand "$T/repo/cand" "$T/nopatches"; then fail "pins_dir_inside_checkout_refused: accepted"; fi
+grep -q 'ITERM_PINS_DIR is inside the checkout' "$T/log" || fail "pins_dir_inside_checkout_refused: $(tail -1 "$T/log")"
+
 [ "$fails" -eq 0 ] || { echo "build-inputs-test: $fails failure(s)" >&2; exit 1; }
 echo "build-inputs-test: OK"
