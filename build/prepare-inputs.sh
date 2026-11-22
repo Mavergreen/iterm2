@@ -15,9 +15,10 @@
 #              read from <MAVERGREEN_ROOT>/usr/local/mavergreen/<short>/mavergreen.plist.
 #          A pin file is data: each value must match its own pattern, and none is evaluated. Any failure
 #          removes OUTPUT_ROOT's inputs files first, so no earlier run's inputs survive a failed one.
-#          OUTPUT_ROOT must lie outside this checkout. ITERM_PINS_DIR (absolute, outside this checkout)
+#          OUTPUT_ROOT must lie outside this checkout. ITERM_PINS_DIR (absolute, outside this checkout or a
+#          tracked candidates/<version>; build/candidate.sh sets both)
 #          supplies components/iterm2/version, components/iterm2-resources/version and UPSTREAM_VERSION
-#          for a candidate upstream, and ITERM_PATCHES_DIR (absolute, may be empty) its patches; the
+#          for a candidate upstream, and ITERM_PATCHES_DIR (absolute, may be empty; candidates/<version>/patches) its patches; the
 #          shipping pins are never read for those, and never change. clang22, Recaulk and shipyard are
 #          always this checkout's pins. Both are recorded in inputs.json. MAVERGREEN_ROOT (default /) relocates the
 #          installed products, and MAVERICKS_SOURCE_CACHE the download cache, for tests.
@@ -34,7 +35,14 @@ outside() { # VAR VALUE -- an absolute directory outside this checkout
   case "$2" in /*) ;; *) die "$1 must be absolute: $2" ;; esac
   [ -d "$2" ] || die "$1 is not a directory: $2"
   _d=$(CDPATH= cd "$2" && pwd -P)
-  case "$_d/" in "$(CDPATH= cd "$REPO_ROOT" && pwd -P)/"*) die "$1 is inside the checkout: $_d" ;; esac
+  _r=$(CDPATH= cd "$REPO_ROOT" && pwd -P)
+  # spec: candidates/README.md -- a tracked candidate's own directory is the one place inside the checkout
+  case "$_d/" in
+    "$_r/candidates/"*/patches/) [ "$1" = ITERM_PATCHES_DIR ] || die "$1 is inside the checkout: $_d" ;;
+    "$_r/candidates/"*/*/) die "$1 is inside the checkout: $_d" ;;
+    "$_r/candidates/"*/) [ "$1" = ITERM_PINS_DIR ] || die "$1 is inside the checkout: $_d" ;;
+    "$_r/"*) die "$1 is inside the checkout: $_d" ;;
+  esac
   printf '%s' "$_d"
 }
 PINS_DIR=$REPO_ROOT

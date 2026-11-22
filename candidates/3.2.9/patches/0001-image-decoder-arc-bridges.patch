@@ -1,0 +1,20 @@
+image_decoder: non-owning ARC bridge casts for CGImageSourceCreateWithData.
+
+The helper builds with ARC. clang22 rejects the two plain casts from
+Objective-C objects to CF types; __bridge states that ownership does not
+move, which is what the original code assumed. The same file already uses
+__bridge for another conversion.
+
+--- a/image_decoder/image_decoder.m
++++ b/image_decoder/image_decoder.m
+@@ -60,8 +60,8 @@
+             exit(1);
+         }
+ 
+-        CGImageSourceRef source = CGImageSourceCreateWithData((CFDataRef)data,
+-                                                              (CFDictionaryRef)@{});
++        CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)data,
++                                                              (__bridge CFDictionaryRef)@{});
+         size_t count = CGImageSourceGetCount(source);
+         NSImageRep *rep = [[image representations] firstObject];
+         NSSize imageSize = NSMakeSize(rep.pixelsWide, rep.pixelsHigh);

@@ -187,5 +187,26 @@ fresh_repo; cand_pins "$T/repo/cand"
 if cand "$T/repo/cand" "$T/nopatches"; then fail "pins_dir_inside_checkout_refused: accepted"; fi
 grep -q 'ITERM_PINS_DIR is inside the checkout' "$T/log" || fail "pins_dir_inside_checkout_refused: $(tail -1 "$T/log")"
 
+# spec: candidates/README.md -- build/candidate.sh VERSION OUTPUT_ROOT prepares the tracked candidate
+#       candidates/VERSION: its pins and its patches always together, from inside the checkout
+fresh_repo; cand_pins "$T/repo/candidates/9.0"; mkdir -p "$T/repo/candidates/9.0/patches"; before=$(snapshot)
+candidate() { # version
+  SHIPYARD_SCRIPTS="$T/shipyard/scripts" MAVERGREEN_ROOT="$T/root" \
+  MAVERICKS_CODELOAD="file://$T/codeload" MAVERICKS_SOURCE_CACHE="$T/cache" \
+    sh "$T/repo/build/candidate.sh" "$1" "$T/out" >"$T/log" 2>&1
+}
+candidate 9.0 || { tail -5 "$T/log" >&2; fail "candidate_sh_sets_both_dirs: candidate.sh failed"; }
+grep -q "\"pins_dir\": \"$T/repo/candidates/9.0\"" "$T/out/inputs.json" 2>/dev/null \
+  || fail "candidate_sh_sets_both_dirs: inputs.json pins_dir is not the candidate's"
+grep -q "\"patches_dir\": \"$T/repo/candidates/9.0/patches\"" "$T/out/inputs.json" 2>/dev/null \
+  || fail "candidate_sh_sets_both_dirs: inputs.json patches_dir is not the candidate's"
+[ "$(cat "$T/out/source/image_decoder/image_decoder.m" 2>/dev/null)" = candidate ] \
+  || fail "candidate_sh_sets_both_dirs: the shipping patches were applied to the candidate"
+[ "$before" = "$(snapshot)" ] || fail "candidate_sh_sets_both_dirs: the checkout changed"
+if candidate 9.9.9; then fail "unknown_candidate_refused: accepted"; fi
+grep -q 'no candidates/9.9.9' "$T/log" || fail "unknown_candidate_refused: $(tail -1 "$T/log")"
+if candidate ../patches; then fail "candidate_name_refused: accepted"; fi
+grep -q 'candidate name' "$T/log" || fail "candidate_name_refused: $(tail -1 "$T/log")"
+
 [ "$fails" -eq 0 ] || { echo "build-inputs-test: $fails failure(s)" >&2; exit 1; }
 echo "build-inputs-test: OK"
