@@ -40,7 +40,8 @@ touches() { # PATCH -- the files a patch writes, sorted, one per line
   || fail "0001 touches other files: $(touches 0001-image-decoder-arc-bridges.patch)"
 [ "$(touches 0002-notifications-user-notification-center.patch)" = 'sources/iTermGrowlDelegate.h sources/iTermGrowlDelegate.m ' ] \
   || fail "0002 touches other files"
-[ "$(touches 0003-scp-transfers-unavailable.patch)" = 'sources/SCPFile.m ' ] || fail "0003 touches other files"
+[ "$(touches 0003-scp-transfers-unavailable.patch)" = 'sources/SCPFile.m sources/TransferrableFile.m ' ] \
+  || fail "0003 touches other files"
 [ "$(touches 0004-family-updater.patch)" = 'sources/GeneralPreferencesViewController.m sources/iTermApplicationDelegate.m sources/iTermController.h sources/iTermController.m ' ] \
   || fail "0004 touches other files"
 [ "$(touches 0005-terminal-file-extern.patch)" = 'sources/TerminalFile.h ' ] || fail "0005 touches other files"
@@ -62,9 +63,19 @@ if sh "$SHIPYARD_SCRIPTS/apply_patches.sh" "$T/src" "$REPO_ROOT/patches" >"$T/lo
            "$T/src/sources" "$T/src/image_decoder" --include='*.h' --include='*.m' --include='*.c' || :)
   [ -z "$left" ] || fail "references remain after patching: $left"
   for f in sources/GrowlTrigger.m sources/GrowlTrigger.h sources/ITAddressBookMgr.h \
-           sources/TransferrableFile.m sources/FileTransferManager.m; do
+           sources/FileTransferManager.m; do
     cmp -s "$T/pristine/$f" "$T/src/$f" || fail "$f changed"
   done
+  # spec: SMOKE.md check 8 -- 0003 changes TransferrableFile.m only to give the failure notification the
+  #       transfer's error as its body
+  [ "$(sed -n '/^--- a\/sources\/TransferrableFile.m$/,$p' "$REPO_ROOT/patches/0003-scp-transfers-unavailable.patch" \
+        | grep '^[-+][^-+]' | tr -s ' ')" = "$(printf '%s\n' \
+        '- self.isDownloading ? @"Download" : @"Upload", [self shortName]]];' \
+        '+ self.isDownloading ? @"Download" : @"Upload", [self shortName]]' \
+        '+ withDescription:[self error]];')" ] \
+    || fail "sources/TransferrableFile.m changed beyond 0003's failure notification"
+  grep -q 'withDescription:\[self error\]' "$T/src/sources/TransferrableFile.m" \
+    || fail "a failed transfer's notification does not carry its error"
   # spec: SECURITY.md CVE-2023-46300, CVE-2019-9535 -- PTYSession.m carries the tmux security fixes (0007,
   #       0008) and nothing from 0002-0004
   mkdir -p "$T/only-tmux/sources"; cp "$T/pristine/sources/PTYSession.m" "$T/only-tmux/sources/"

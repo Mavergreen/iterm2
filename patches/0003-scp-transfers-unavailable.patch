@@ -2,9 +2,11 @@ SCP: transfers report that they are unavailable; no NMSSH.
 
 NMSSH is not bundled: its prebuilt framework statically carries libssh2 1.7.0
 (CVE-2019-3855) and OpenSSL 1.0.2g (maintainer decision 2026-11-07). SCPFile keeps
-its interface, so PTYSession and the transfer UI are unchanged; every download or
+its interface, so PTYSession and the transfer menu are unchanged; every download or
 upload is registered, then finishes with an error that says why. Stopping a transfer
-that already failed leaves its error in place.
+that already failed leaves its error in place. A failed transfer's notification
+carries its error as the body, so the reason shows where people look, not only in
+Console; Get Info in the transfer menu already showed it.
 
 --- a/sources/SCPFile.m
 +++ b/sources/SCPFile.m
@@ -692,3 +694,15 @@ that already failed leaves its error in place.
  }
  
  @end
+--- a/sources/TransferrableFile.m
++++ b/sources/TransferrableFile.m
+@@ -134,7 +134,8 @@
+                 case kTransferrableFileStatusFinishedWithError:
+                     [[iTermGrowlDelegate sharedInstance] growlNotify:
+                      [NSString stringWithFormat:@"%@ of “%@” failed.",
+-                      self.isDownloading ? @"Download" : @"Upload", [self shortName]]];
++                      self.isDownloading ? @"Download" : @"Upload", [self shortName]]
++                                                     withDescription:[self error]];
+             }
+         }
+     }

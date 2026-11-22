@@ -19,7 +19,7 @@ Note each result, pass or fail, with anything surprising.
 5. **Inline image.** `printf '\033]1337;File=inline=1:%s\a\n' "$(base64 < "$BUILD/iTerm2.app/Contents/Resources/BigArrow.png")"` draws an arrow. That shows image_decoder runs.
 6. **Notification.** Preferences › Profiles › Terminal › "Send Growl/Notification Center alerts" is on in the default profile. Run `sleep 10; printf '\a'`, then hide the app (⌘H) or minimize its window. A "Bell" notification appears, and clicking it brings the session back. Switching apps isn't enough: like upstream 3.0.15, the app notifies only when the window is out of sight.
 7. **Check for Updates.** iTerm2 › Check for Updates explains that the family updater is not installed and names the release page.
-8. **scp.** With shell integration absent, an scp transfer, if attempted, reports that scp is unavailable in this build.
+8. **scp.** With shell integration absent, an scp transfer, if attempted, fails: the transfer menu says "Failed", and the "Download of … failed." (or Upload) notification's body says that scp is unavailable in this build and why.
 9. **tmux integration.** Run `/opt/pkg/bin/tmux -CC`. A tmux window opens as a native iTerm2 window. Then `/opt/pkg/bin/tmux -CC attach` from a second window, detach, and reattach. iTerm2 3.0.15 predates tmux 3.6: if integration doesn't work with it, note that and test with a tmux of 3.0.15's era, because the limitation predates this build.
 10. **Hover.** Hold Command over a URL. It underlines as a link at once, with no DNS lookup (CVE-2015-9231).
 
