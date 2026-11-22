@@ -50,6 +50,7 @@ fresh_repo() { # a copy of this checkout's build inputs, with fixture pins
   mkdir -p "$T/repo/components/iterm2" "$T/repo/components/iterm2-resources" \
     "$T/repo/components/clang22" "$T/repo/components/recaulk" "$T/repo/patches"
   cp -R "$REPO_ROOT/build" "$T/repo/build"
+  mkdir -p "$T/repo/cmake"; cp -R "$REPO_ROOT/cmake/targets" "$T/repo/cmake/targets"
   cp "$REPO_ROOT/components/dependencies.tsv" "$T/repo/components/dependencies.tsv"
   printf 'REPO=https://github.com/gnachman/iTerm2\nREF=v3.0.15\nDIGEST=%s\nSHA256=%s\n' "$DIGEST" "$SRC_SHA" \
     > "$T/repo/components/iterm2/version"
@@ -164,6 +165,7 @@ cand_pins() { # dir
     > "$1/components/iterm2/version"
   printf 'URL=file://%s\nSHA256=%s\nVERSION=3.1.7\n' "$T/resources.zip" "$RES_SHA" > "$1/components/iterm2-resources/version"
   echo 3.1.7 > "$1/UPSTREAM_VERSION"
+  echo '# fixture table' > "$1/targets.cmake"
 }
 cand() { # pins-dir patches-dir
   ITERM_PINS_DIR="$1" ITERM_PATCHES_DIR="$2" SHIPYARD_SCRIPTS="$T/shipyard/scripts" MAVERGREEN_ROOT="$T/root" \
@@ -207,6 +209,18 @@ if candidate 9.9.9; then fail "unknown_candidate_refused: accepted"; fi
 grep -q 'no candidates/9.9.9' "$T/log" || fail "unknown_candidate_refused: $(tail -1 "$T/log")"
 if candidate ../patches; then fail "candidate_name_refused: accepted"; fi
 grep -q 'candidate name' "$T/log" || fail "candidate_name_refused: $(tail -1 "$T/log")"
+
+# spec: BUILD.md "Targets" -- the inputs name the targets table: the shipping version's, or the candidate's own
+fresh_repo; prepare || { tail -3 "$T/log" >&2; fail "shipping_inputs_name_shipping_table: prepare failed"; }
+[ "$(cmake_var ITERM_TARGETS_FILE)" = "$T/repo/cmake/targets/3.0.15.cmake" ] \
+  || fail "shipping_inputs_name_shipping_table: $(cmake_var ITERM_TARGETS_FILE)"
+fresh_repo; cand_pins "$T/repo/candidates/9.0"; mkdir -p "$T/repo/candidates/9.0/patches"
+candidate 9.0 || { tail -3 "$T/log" >&2; fail "candidate_inputs_name_candidate_table: candidate.sh failed"; }
+[ "$(cmake_var ITERM_TARGETS_FILE)" = "$T/repo/candidates/9.0/targets.cmake" ] \
+  || fail "candidate_inputs_name_candidate_table: $(cmake_var ITERM_TARGETS_FILE)"
+rm "$T/repo/candidates/9.0/targets.cmake"
+if candidate 9.0; then fail "candidate_without_table_refused: accepted"; fi
+grep -q 'targets table' "$T/log" || fail "candidate_without_table_refused: $(tail -1 "$T/log")"
 
 [ "$fails" -eq 0 ] || { echo "build-inputs-test: $fails failure(s)" >&2; exit 1; }
 echo "build-inputs-test: OK"

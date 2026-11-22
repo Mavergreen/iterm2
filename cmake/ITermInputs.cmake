@@ -31,7 +31,7 @@ else()
   set(ITERM_UNRELEASED_INPUTS OFF CACHE BOOL "built with unreleased Recaulk recipes" FORCE)
 endif()
 foreach(_iterm_v ITERM_SOURCE_DIR ITERM_RESOURCES_ZIP ITERM_RECAULK_RECIPES ITERM_CLANG22_COMPILER
-                 ITERM_DEPENDENCY_MANIFEST)
+                 ITERM_DEPENDENCY_MANIFEST ITERM_TARGETS_FILE)
   if(NOT DEFINED ${_iterm_v} OR NOT IS_ABSOLUTE "${${_iterm_v}}" OR NOT EXISTS "${${_iterm_v}}")
     message(FATAL_ERROR "${ITERM_INPUTS_FILE} gives ${_iterm_v} no existing absolute path: prepare the inputs again.")
   endif()

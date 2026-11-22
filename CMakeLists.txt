@@ -5,7 +5,15 @@ cmake_minimum_required(VERSION 3.25)
 # spec: BUILD.md "Inputs" -- the verified inputs are read, and their clang22 selected, before project(), so
 #       compiler detection runs only the verified family compiler.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermInputs.cmake")
-project(iTerm2 VERSION ${ITERM_UPSTREAM_VERSION} LANGUAGES C OBJC)
+# spec: BUILD.md "Targets" -- the targets table the inputs name says which languages its sources need
+include("${ITERM_TARGETS_FILE}")
+if(OBJCXX IN_LIST ITERM_LANGUAGES OR CXX IN_LIST ITERM_LANGUAGES)
+  get_filename_component(_iterm_cl_dir "${ITERM_CLANG22_COMPILER}" DIRECTORY)
+  foreach(_iterm_lang CXX OBJCXX)
+    set(CMAKE_${_iterm_lang}_COMPILER "${_iterm_cl_dir}/clang++")
+  endforeach()
+endif()
+project(iTerm2 VERSION ${ITERM_UPSTREAM_VERSION} LANGUAGES ${ITERM_LANGUAGES})
 iterm_check_compiler()
 
 find_package(MavericksShipyard REQUIRED)
@@ -18,10 +26,12 @@ include(MavericksSDKMetadata)
 include(MavericksXcodeInputs)
 include(MavericksSparkle)
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermTargets.cmake")
+iterm_export_lists(_iterm_export_targets _iterm_export_prefixes)
 mavericks_export_xcode_sources(ITERM_SOURCES_FILE
   PROJECT "${ITERM_SOURCE_DIR}/iTerm2.xcodeproj"
-  TARGETS iTerm2 iTerm2Shared SSKeychain image_decoder
-  PREFIXES ITERM2 ITERM2_SHARED SSKEYCHAIN IMAGE_DECODER
+  TARGETS ${_iterm_export_targets}
+  PREFIXES ${_iterm_export_prefixes}
   HOST_COMPILER "${ITERM_CLANG22_COMPILER}"
   OUTPUT_DIR "${CMAKE_BINARY_DIR}/xcode-inputs")
 
@@ -49,7 +59,6 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermColorPicker.cmake")
 iterm_add_colorpicker(SOURCES_FILE "${ITERM_COLORPICKER_SOURCES_FILE}" SOURCE_DIR "${ITERM_SOURCE_DIR}/ColorPicker"
   SDK "${CMAKE_OSX_SYSROOT}" RECIPES "${ITERM_RECAULK_RECIPES}" METADATA_DIR "${CMAKE_BINARY_DIR}/sdk-metadata")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermTargets.cmake")
 iterm_add_targets(
   SOURCES_FILE "${ITERM_SOURCES_FILE}"
   SOURCE_DIR "${ITERM_SOURCE_DIR}"

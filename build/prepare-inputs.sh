@@ -20,7 +20,8 @@
 #          supplies components/iterm2/version, components/iterm2-resources/version and UPSTREAM_VERSION
 #          for a candidate upstream, and ITERM_PATCHES_DIR (absolute, may be empty; candidates/<version>/patches) its patches; the
 #          shipping pins are never read for those, and never change. clang22, Recaulk and shipyard are
-#          always this checkout's pins. Both are recorded in inputs.json. MAVERGREEN_ROOT (default /) relocates the
+#          always this checkout's pins. Both are recorded in inputs.json, with ITERM_TARGETS_FILE: the
+#          candidate's targets.cmake, or cmake/targets/<UPSTREAM_VERSION>.cmake for the shipping pins. MAVERGREEN_ROOT (default /) relocates the
 #          installed products, and MAVERICKS_SOURCE_CACHE the download cache, for tests.
 set -eu
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
@@ -82,6 +83,10 @@ upstream=$(line UPSTREAM_VERSION "$VER" "$PINS_DIR")
 clang_pin=$(line components/clang22/version "$TAG")
 recaulk_pin=$(line components/recaulk/version "$TAG")
 [ "$src_ref" = "v$upstream" ] || die "components/iterm2/version REF $src_ref is not v$upstream (UPSTREAM_VERSION)"
+# spec: BUILD.md "Targets" -- a candidate brings its own targets table; the shipping pins use the table for
+#       their upstream version. Neither is ever guessed.
+if [ "$PINS_DIR" = "$REPO_ROOT" ]; then targets=$REPO_ROOT/cmake/targets/$upstream.cmake; else targets=$PINS_DIR/targets.cmake; fi
+[ -f "$targets" ] || die "no targets table for upstream $upstream: $targets"
 [ "$res_version" = "$upstream" ] || die "components/iterm2-resources/version VERSION $res_version is not $upstream (UPSTREAM_VERSION)"
 
 . "$REPO_ROOT/build/msc.sh"
@@ -125,7 +130,7 @@ zip_name="iTerm2-resources-$res_version-$res_sha.zip"
 shipyard_fetch_verified "$res_url" "$res_sha" "$CACHE" "$zip_name" || die "the resource ZIP did not fetch and verify"
 zip="$CACHE/$zip_name"
 
-for p in "$OUT" "$zip" "$recipes" "$compiler" "$deps" "$PINS_DIR" "$PATCHES_DIR"; do
+for p in "$OUT" "$zip" "$recipes" "$compiler" "$deps" "$PINS_DIR" "$PATCHES_DIR" "$targets"; do
   case "$p" in *']==]'*|*'
 '*) die "a path cannot be written into inputs.cmake: $p" ;; esac
 done
@@ -146,6 +151,7 @@ done
   echo "set(ITERM_CLANG22_VERSION [==[$clang_pin]==])"
   echo "set(ITERM_DEPENDENCY_MANIFEST [==[$deps]==])"
   echo "set(ITERM_MODE [==[$mode]==])"
+  echo "set(ITERM_TARGETS_FILE [==[$targets]==])"
 } > "$OUT/inputs.cmake.tmp"
 cat > "$OUT/inputs.json.tmp" <<EOF
 {
@@ -159,6 +165,7 @@ cat > "$OUT/inputs.json.tmp" <<EOF
   "dependencies": "$(j "$deps")",
   "pins_dir": "$(j "$PINS_DIR")",
   "patches_dir": "$(j "$PATCHES_DIR")",
+  "targets_file": "$(j "$targets")",
   "patches": [$patches_json]
 }
 EOF

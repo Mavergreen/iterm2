@@ -45,6 +45,7 @@ function(mavericks_target_sdk_metadata)
   cmake_parse_arguments(A "" "TARGET;SDK;RECIPES;OUTPUT_DIR" "IDS" \${ARGN})
   set_property(GLOBAL APPEND PROPERTY FIXTURE_METADATA "\${A_TARGET}:\${A_IDS}:\${A_SDK}")
 endfunction()
+set(ITERM_TARGETS_FILE "\${TABLE}")
 include("$REPO_ROOT/cmake/ITermTargets.cmake")
 $1
 iterm_add_targets(SOURCES_FILE "$T/sources.cmake" SOURCE_DIR "$S" SDK "$SDK"
@@ -63,6 +64,7 @@ string(APPEND r "METADATA \${m}\n")
 file(WRITE "\${CMAKE_BINARY_DIR}/report.txt" "\${r}")
 EOF
   "$CMAKE" -S "$T/p" -B "$T/b" -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_OBJC_COMPILER=/usr/bin/clang \
+    -DTABLE="${TABLE:-$REPO_ROOT/cmake/targets/3.0.15.cmake}" \
     >"$T/log" 2>&1
 }
 has() { grep -qF -- "$1 $2 " "$T/b/report.txt" && grep -F -- "$1 $2 " "$T/b/report.txt" | grep -qF -- "$3"; }
@@ -124,6 +126,34 @@ else
   cat "$T/log" >&2; fail "the fixture did not configure"
 fi
 
+# spec: BUILD.md "Targets" -- CLANG_ENABLE_OBJC_WEAK and CLANG_CXX_LANGUAGE_STANDARD, where a row sets them
+if fixture 'list(APPEND ITERM_ROW_iTerm2Shared OBJC_WEAK ON CXX_STANDARD gnu++11)'; then
+  has iTerm2Shared COMPILE_OPTIONS -fobjc-weak || fail "row_objc_weak: iTerm2Shared lacks -fobjc-weak"
+  has iTerm2Shared COMPILE_OPTIONS -std=gnu++11 || fail "row_cxx_standard: iTerm2Shared lacks -std=gnu++11"
+  hasnt SSKeychain COMPILE_OPTIONS -fobjc-weak || fail "row_objc_weak: SSKeychain got -fobjc-weak without its row asking"
+else
+  tail -5 "$T/log" >&2; fail "row_objc_weak: the fixture did not configure"
+fi
+fixture 'list(APPEND ITERM_ROW_iTerm2Shared CXX_STANDARD "gnu++11 -O0")' && fail "row_cxx_standard_validated: accepted" \
+  || grep -q 'CXX_STANDARD' "$T/log" || fail "row_cxx_standard_validated: the refusal does not name CXX_STANDARD"
+# spec: BUILD.md "Targets" -- with no targets table named, nothing is assumed
+(TABLE=/nonexistent/targets.cmake fixture '') && fail "missing_table_refused: accepted" \
+  || grep -q 'ITERM_TARGETS_FILE' "$T/log" || fail "missing_table_refused: the refusal does not name ITERM_TARGETS_FILE"
+
+# spec: candidates/README.md -- the 3.2.9 table: iTerm2SharedARC (new since 3.0.15), ARC, its pch, sources/proto first
+printf 'include("%s")\nforeach(t IN LISTS ITERM_TARGETS)\n  message("${t}: ${ITERM_ROW_${t}}")\nendforeach()\nmessage("LANGUAGES: ${ITERM_LANGUAGES}")\n' \
+  "$REPO_ROOT/candidates/3.2.9/targets.cmake" > "$T/read-table.cmake"
+"$CMAKE" -P "$T/read-table.cmake" > "$T/table.txt" 2>&1 || fail "candidate_table_has_shared_arc: the 3.2.9 table does not load: $(tail -1 "$T/table.txt")"
+row=$(grep '^iTerm2SharedARC: ' "$T/table.txt" || :)
+[ -n "$row" ] || fail "candidate_table_has_shared_arc: no iTerm2SharedARC row"
+case "$row" in *"ARC;ON;"*) ;; *) fail "candidate_table_has_shared_arc: not ARC: $row" ;; esac
+case "$row" in *"PREFIX_HEADER;sources/iTerm2.pch;"*) ;; *) fail "candidate_table_has_shared_arc: not sources/iTerm2.pch" ;; esac
+case "$row" in *"INCLUDES;sources/proto;"*) ;; *) fail "candidate_table_has_shared_arc: sources/proto is not first" ;; esac
+grep -q '^iTerm2: .*LINK;iTerm2Shared;iTerm2SharedARC' "$T/table.txt" || fail "candidate_table_has_shared_arc: iTerm2 does not link both shared libraries"
+grep -q '^LANGUAGES: C;OBJC;CXX;OBJCXX$' "$T/table.txt" || fail "candidate_table_languages: $(grep LANGUAGES "$T/table.txt")"
+printf 'include("%s")\nmessage("LANGUAGES: ${ITERM_LANGUAGES}")\n' "$REPO_ROOT/cmake/targets/3.0.15.cmake" > "$T/read-ship.cmake"
+[ "$("$CMAKE" -P "$T/read-ship.cmake" 2>&1)" = "LANGUAGES: C;OBJC" ] || fail "shipping_table_languages: 3.0.15 is not C;OBJC"
+
 fixture 'list(APPEND ITERM_ROW_SSKeychain WARNINGS -Wall)' && fail "an unknown setting was accepted" \
   || grep -q 'WARNINGS' "$T/log" || fail "the refusal does not name the unknown setting"
 cp "$T/sources.cmake" "$T/sources.keep"
@@ -143,9 +173,9 @@ gate() { # COMPILER [EXTRA-ARGS...] -- configure the real CMakeLists with fixtur
   c=$1; shift
   rm -rf "$T/g"; mkdir -p "$T/g"
   : > "$T/g/resources.zip"; : > "$T/g/recipes.json"; : > "$T/g/deps.tsv"
-  printf 'set(ITERM_UPSTREAM_VERSION 3.0.15)\nset(ITERM_SOURCE_DIR [[%s]])\nset(ITERM_RESOURCES_ZIP [[%s]])\nset(ITERM_RESOURCES_SHA256 %s)\nset(ITERM_CLANG22_VERSION %s)\nset(ITERM_RECAULK_RECIPES [[%s]])\nset(ITERM_CLANG22_COMPILER [[%s]])\nset(ITERM_DEPENDENCY_MANIFEST [[%s]])\nset(ITERM_MODE native)\n' \
+  printf 'set(ITERM_UPSTREAM_VERSION 3.0.15)\nset(ITERM_SOURCE_DIR [[%s]])\nset(ITERM_RESOURCES_ZIP [[%s]])\nset(ITERM_RESOURCES_SHA256 %s)\nset(ITERM_CLANG22_VERSION %s)\nset(ITERM_RECAULK_RECIPES [[%s]])\nset(ITERM_CLANG22_COMPILER [[%s]])\nset(ITERM_DEPENDENCY_MANIFEST [[%s]])\nset(ITERM_MODE native)\nset(ITERM_TARGETS_FILE [[%s]])\n' \
     "$S" "$T/g/resources.zip" "${GATE_SHA:-90e6f2bd3eb2d245f4ab2c9f856c627c8a1536bac024fb3989db417bc3147565}" \
-    "${GATE_PIN:-22.1.8-mavericks.12}" "$T/g/recipes.json" "$c" "$T/g/deps.tsv" > "$T/g/inputs.cmake"
+    "${GATE_PIN:-22.1.8-mavericks.12}" "$T/g/recipes.json" "$c" "$T/g/deps.tsv" "$REPO_ROOT/cmake/targets/3.0.15.cmake" > "$T/g/inputs.cmake"
   # platform: CMake defaults to the host's arch, arm64 on Apple Silicon, which the 10.9 SDK lacks, and its
   #           compiler check would fail before the gate under test; name x86_64
   "$CMAKE" -S "$REPO_ROOT" -B "$T/g/b" -DCMAKE_OSX_ARCHITECTURES=x86_64 "$@" >"$T/log" 2>&1

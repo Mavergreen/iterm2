@@ -1,4 +1,5 @@
-# ITermTargets.cmake -- the four production targets of iTerm2 3.0.15, from the exported source lists.
+# ITermTargets.cmake -- the production targets of the upstream being built, from the exported source lists
+# and the targets table ITERM_TARGETS_FILE names (cmake/targets/3.0.15.cmake ships).
 #
 # iterm_add_targets(SOURCES_FILE <abs> SOURCE_DIR <abs> SDK <abs> RECIPES <abs> METADATA_DIR <abs>
 #                   UPDATER_BUNDLE_ID <id> RELEASES_URL <https url> PRODUCT_DIR <abs>)
@@ -12,6 +13,7 @@
 # spec: BUILD.md "Targets" -- an explicit per-target table, not the exporter's generated build.
 # spec: BUILD.md "Dependency dispositions" -- Growl, NMSSH and Sparkle are never linked.
 #
+# A table sets ITERM_TARGETS, ITERM_LANGUAGES (what project() enables) and ITERM_ROW_<target>.
 # Row keys:
 #   KIND           static | executable
 #   EXPORT_PREFIX  the exporter's variable prefix for this target
@@ -32,6 +34,8 @@
 #                  runtime leaves a subclass of a missing class unrealized, so each use must be guarded.
 #   DEPENDS        targets built first (Xcode target dependencies that are not links)
 #   METADATA       ON | OFF: the Recaulk SDK-metadata overlay for this target's Objective-C
+#   OBJC_WEAK      ON: CLANG_ENABLE_OBJC_WEAK (-fobjc-weak, __weak under manual reference counting)
+#   CXX_STANDARD   CLANG_CXX_LANGUAGE_STANDARD for C++ and Objective-C++ (gnu++0x is gnu++11)
 #   PRODUCT_SOURCES this product's own sources, relative to PRODUCT_DIR (product/SUUpdater.m, product/iTermFamilyVersion.m,
 #                   product/iTermFamilyUpdaterPreferences.m)
 #   UPDATER_ID     ON: compile with ITERM_UPDATER_BUNDLE_ID="<UPDATER_BUNDLE_ID>" and
@@ -44,27 +48,25 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/ITermMetadata.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ITermSourcePrefix.cmake")
-set(ITERM_TARGETS iTerm2 iTerm2Shared SSKeychain image_decoder)
-set(ITERM_ROW_iTerm2
-  KIND executable  EXPORT_PREFIX ITERM2  ARC OFF  PREFIX_HEADER ""
-  C_STANDARD 99  C_EXTENSIONS OFF  OPTIMIZATION 3  INCLUDES . ThirdParty
-  LINK iTerm2Shared
-  FRAMEWORKS OpenDirectory Security ScriptingBridge AppKit Carbon Quartz
-  SDK_LIBS aprutil-1 icucore ncurses  LINK_OPTIONS -ObjC  DEPENDS image_decoder  METADATA ON
-  WEAK_CLASSES NSTitlebarAccessoryViewController
-  PRODUCT_SOURCES SUUpdater.m iTermFamilyVersion.m)
-set(ITERM_ROW_iTerm2Shared
-  KIND static  EXPORT_PREFIX ITERM2_SHARED  ARC OFF  PREFIX_HEADER sources/iTerm2.pch
-  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s
-  LINK SSKeychain  FRAMEWORKS Cocoa  METADATA ON  UPDATER_ID ON
-  PRODUCT_SOURCES iTermFamilyUpdaterPreferences.m)
-set(ITERM_ROW_SSKeychain
-  KIND static  EXPORT_PREFIX SSKEYCHAIN  ARC ON  PREFIX_HEADER ThirdParty/SSKeychain/SSKeychain-Prefix.pch
-  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s  FRAMEWORKS Cocoa  METADATA OFF)
-set(ITERM_ROW_image_decoder
-  KIND executable  EXPORT_PREFIX IMAGE_DECODER  ARC ON  PREFIX_HEADER ""
-  C_STANDARD 99  C_EXTENSIONS ON  OPTIMIZATION s  FRAMEWORKS Cocoa ApplicationServices
-  SDK_LIBS aprutil-1  METADATA ON)
+# spec: BUILD.md "Targets" -- the rows come with the inputs: ITERM_TARGETS_FILE names the table for the
+#       upstream being built (cmake/targets/<version>.cmake, or a candidate's targets.cmake), never a default
+if(NOT IS_ABSOLUTE "${ITERM_TARGETS_FILE}" OR NOT EXISTS "${ITERM_TARGETS_FILE}")
+  message(FATAL_ERROR "ITERM_TARGETS_FILE ('${ITERM_TARGETS_FILE}') is not an existing absolute path: prepare the inputs again")
+endif()
+include("${ITERM_TARGETS_FILE}")
+set(_ITERM_ROW_ONE "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID;OBJC_WEAK;CXX_STANDARD")
+set(_ITERM_ROW_MANY "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES")
+
+# spec: BUILD.md "Targets" -- the exporter's TARGETS and PREFIXES, read from the same rows the build applies
+function(iterm_export_lists targets_out prefixes_out)
+  set(ps "")
+  foreach(t IN LISTS ITERM_TARGETS)
+    cmake_parse_arguments(R "" "${_ITERM_ROW_ONE}" "${_ITERM_ROW_MANY}" ${ITERM_ROW_${t}})
+    list(APPEND ps "${R_EXPORT_PREFIX}")
+  endforeach()
+  set(${targets_out} ${ITERM_TARGETS} PARENT_SCOPE)
+  set(${prefixes_out} ${ps} PARENT_SCOPE)
+endfunction()
 
 # spec: BUILD.md "Targets" -- the app's system links (frameworks, the SDK's own dylibs, linker options, weak
 #       classes), read from the caller's parsed row (R_*), so a driver links exactly as the app does
@@ -90,8 +92,7 @@ endfunction()
 # spec: BUILD.md "Build evidence" -- a driver test links the built iTerm2Shared with the app's row and
 #       compiles as iTerm2Shared does; it is never built with the app, only by the drivers target
 function(iterm_add_driver name)
-  cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
-                        "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_iTerm2})
+  cmake_parse_arguments(R "" "${_ITERM_ROW_ONE}" "${_ITERM_ROW_MANY}" ${ITERM_ROW_iTerm2})
   set(t driver-${name})
   # platform: -ObjC loads every iTerm2Shared object, and some refer to symbols the app target compiles itself
   #           (its own sources and the product's), so a driver compiles those too, all but main.m
@@ -152,8 +153,7 @@ function(iterm_add_targets)
 
   set(prefixes "")
   foreach(t IN LISTS ITERM_TARGETS)
-    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
-                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
+    cmake_parse_arguments(R "" "${_ITERM_ROW_ONE}" "${_ITERM_ROW_MANY}" ${ITERM_ROW_${t}})
     if(R_UNPARSED_ARGUMENTS)
       message(FATAL_ERROR "iterm_add_targets: ${t}'s row has settings this build does not apply: ${R_UNPARSED_ARGUMENTS}")
     endif()
@@ -174,8 +174,7 @@ function(iterm_add_targets)
   endforeach()
 
   foreach(t IN LISTS ITERM_TARGETS)
-    cmake_parse_arguments(R "" "KIND;EXPORT_PREFIX;ARC;PREFIX_HEADER;C_STANDARD;C_EXTENSIONS;OPTIMIZATION;METADATA;UPDATER_ID"
-                          "INCLUDES;LINK;FRAMEWORKS;SDK_LIBS;LINK_OPTIONS;WEAK_CLASSES;DEPENDS;PRODUCT_SOURCES" ${ITERM_ROW_${t}})
+    cmake_parse_arguments(R "" "${_ITERM_ROW_ONE}" "${_ITERM_ROW_MANY}" ${ITERM_ROW_${t}})
     set(P "${R_EXPORT_PREFIX}")
     if(NOT ${P}_SOURCES)
       message(FATAL_ERROR "iterm_add_targets: ${A_SOURCES_FILE} lists no ${P}_SOURCES for ${t}")
@@ -216,7 +215,16 @@ function(iterm_add_targets)
                                                 "ITERM_RELEASES_URL=\"${A_RELEASES_URL}\"")
     endif()
     if(R_ARC)
-      target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
+      target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:OBJC,OBJCXX>:-fobjc-arc>")
+    endif()
+    if(R_OBJC_WEAK)
+      target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:OBJC,OBJCXX>:-fobjc-weak>")
+    endif()
+    if(DEFINED R_CXX_STANDARD)
+      if(NOT R_CXX_STANDARD MATCHES "^(c|gnu)\\+\\+(98|11|14|17|20)$")
+        message(FATAL_ERROR "iterm_add_targets: ${t}'s CXX_STANDARD '${R_CXX_STANDARD}' is not a C++ standard (c++11, gnu++11, ...)")
+      endif()
+      target_compile_options(${t} PRIVATE "$<$<COMPILE_LANGUAGE:CXX,OBJCXX>:-std=${R_CXX_STANDARD}>")
     endif()
     # platform: __FILE__ (assertions, logging) would otherwise carry the build host's path to the source
     iterm_map_source_prefix(${t} "${A_SOURCE_DIR}" .)

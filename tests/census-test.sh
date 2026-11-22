@@ -35,6 +35,7 @@ set(ITERM_CLANG22_COMPILER [==[$COMPILER]==])
 set(ITERM_CLANG22_VERSION [==[$(cat "$REPO_ROOT/components/clang22/version")]==])
 set(ITERM_DEPENDENCY_MANIFEST [==[$T/deps.tsv]==])
 set(ITERM_MODE [==[$(sh "$SCRIPTS/mavericks_mode.sh")]==])
+set(ITERM_TARGETS_FILE [==[$REPO_ROOT/cmake/targets/3.0.15.cmake]==])
 EOC
 census() { # settings out
   ITERM_CENSUS_PROJECT=fx.xcodeproj sh "$REPO_ROOT/build/census.sh" "$T/inputs" "$1" "$2" >"$T/log" 2>&1
