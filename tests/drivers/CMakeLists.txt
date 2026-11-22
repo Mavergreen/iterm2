@@ -9,6 +9,10 @@ iterm_add_driver(url-command url-command-driver.m)
 iterm_add_driver(scp-failure scp-failure-driver.m)
 iterm_add_driver(restart-for-update restart-for-update-driver.m)
 iterm_add_driver(updater-preferences updater-preferences-driver.m)
+# spec: BUILD.md "Targets" -- a driver only one upstream builds is named by its targets table
+foreach(d IN LISTS ITERM_TABLE_DRIVERS)
+  iterm_add_driver(${d} ${d}-driver.m)
+endforeach()
 # spec: SMOKE.md check 5 -- a bare executable's main bundle is its own directory, so image_decoder and its
 #       sandbox profile go beside the driver, as they sit in the app's Resources
 iterm_add_driver(image-decoder image-decoder-driver.m)

@@ -29,6 +29,23 @@ for c in "$REPO_ROOT"/candidates/*/; do
     case $(basename "$p") in *census*) fail "no_research_patch_in_candidate: $name/$(basename "$p")" ;; esac
     ! grep -qi 'RESEARCH ONLY' "$p" || fail "no_research_patch_in_candidate: $name/$(basename "$p") says RESEARCH ONLY"
   done
+  # spec: candidates/README.md "3.2.9" -- a define the table sets is one its patches honour, the census
+  #       compiles each target with its row's defines, and a driver the table names has its source
+  t=$c/targets.cmake
+  if [ -f "$t" ]; then
+    for d in $(sed -n 's/.*DEFINES \([A-Za-z_][A-Za-z0-9_=]*\).*/\1/p' "$t" | sort -u); do
+      cat "$c"/patches/*.patch 2>/dev/null | grep -q -- "${d%%=*}" \
+        || fail "table_define_has_patch: $name sets $d, which none of its patches mentions"
+    done
+    for row in $(sed -n 's/^set(ITERM_ROW_\([A-Za-z0-9_]*\)$/\1/p' "$t"); do
+      want=$(awk -v r="set(ITERM_ROW_$row" '$0==r{f=1;next} f&&/^set\(/{f=0} f' "$t" | sed -n 's/.*DEFINES \([^ )]*\).*/\1/p')
+      got=$(awk -v r="TARGET=$row" '$0==r{f=1;next} f&&/^$/{f=0} f' "$c/census-settings" | sed -n 's/^DEFINES=//p')
+      [ "$want" = "$got" ] || fail "census_defines_match_table: $name $row defines '$got' in census-settings, '$want' in targets.cmake"
+    done
+    for drv in $(sed -n 's/^set(ITERM_TABLE_DRIVERS \(.*\))$/\1/p' "$t"); do
+      [ -f "$REPO_ROOT/tests/drivers/$drv-driver.m" ] || fail "table_driver_has_source: $name names driver $drv"
+    done
+  fi
 done
 [ "$n" -gt 0 ] || fail "candidates: none found"
 [ "$fails" -eq 0 ] || { echo "candidate-test: $fails failure(s)" >&2; exit 1; }

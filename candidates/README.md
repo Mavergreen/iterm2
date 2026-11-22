@@ -31,4 +31,7 @@ Chosen by the maintainer on 2026-11-22; the research is in `recommendation.md` u
 `.superpowers/research/2026-11-22-upstream-boundary/` (not tracked). Shipping patches 0001, 0007, 0010
 and 0011 apply unchanged; 0002, 0005 and 0009 are upstream's own code by 3.2.9; 0003, 0004, 0006, 0008 and
 0012 must be ported again. shipyard's exporter (v1.0.810 and later) lists the Metal shaders as not
-compiled; the build leaves them out, since 10.9 has no Metal. The census compiles 515 files.
+compiled; the build leaves them out, since 10.9 has no Metal. Patch 0013 makes the legacy renderer always
+draw (`ITERM_NO_METAL`, which the table and the census settings define), and the table leaves out the
+renderer's 37 sources. The census compiles 515 files. Configure gets past the targets and stops at the
+resources: `resources/compiled.tsv` lists 3.0.15's compiled resources, and 3.2.9 needs its own.

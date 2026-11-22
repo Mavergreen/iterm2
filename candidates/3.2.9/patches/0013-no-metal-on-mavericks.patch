@@ -1,0 +1,366 @@
+No Metal on Mavericks: the legacy renderer always draws.
+
+10.9 has no Metal; upstream already falls back to the legacy renderer when
+no Metal device exists (metalAllowed: NoGPU). With ITERM_NO_METAL, which
+the candidate's targets table sets:
+
+- -[PTYSession metalAllowed:] answers NO with iTermMetalUnavailableReasonNoGPU
+  before touching Metal, so the Metal view, driver and glue are never made.
+- iTermNoMetal.h declares the few Metal and MetalKit names the legacy path
+  still mentions (MTKView as a plain NSView, the MTLDevice protocol); the
+  renderer's own headers, Metal.framework and MetalKit.framework are never
+  read. iTermMetalDriver.h keeps only its data-source protocol and the
+  driver's interface.
+- Every reference to a Metal class object is guarded: creating the glue,
+  the MTKView and the driver, -metalDevice, -updateMetalDriver, the
+  metal context, and the isKindOfClass: tests for MTKView.
+- simd comes out of iTermColorMap.h and NSColor+iTerm.h: the vector
+  accessors, which only the renderer calls, are behind ITERM_NO_METAL, and
+  iTermColorMap.mm's muting arithmetic uses clang's own vector type, since
+  the 10.9 SDK has no <simd/>.
+- iTermAdvancedGPUSettingsViewController finds no GPUs to choose between.
+
+The renderer's 37 sources are left out by the table's EXCLUDE_SOURCES;
+iTermMetalClipView stays, as the scroll view's clip view.
+
+--- a/sources/Metal/Support/iTermMetalClipView.m
++++ b/sources/Metal/Support/iTermMetalClipView.m
+@@ -9,7 +9,11 @@
+ 
+ #import "DebugLogging.h"
+ #import "iTermRateLimitedUpdate.h"
++#ifdef ITERM_NO_METAL
++#import "iTermNoMetal.h"
++#else
+ #import <MetalKit/MetalKit.h>
++#endif
+ 
+ @implementation iTermMetalClipView
+ 
+--- a/sources/Metal/iTermMetalDriver.h
++++ b/sources/Metal/iTermMetalDriver.h
+@@ -1,5 +1,8 @@
+ #import "VT100GridTypes.h"
+ 
++#ifdef ITERM_NO_METAL
++#import "iTermNoMetal.h"
++#else
+ #import "iTermASCIITexture.h"
+ #import "iTermCursor.h"
+ #import "iTermImageRenderer.h"
+@@ -11,9 +14,11 @@
+ #import "iTermTextRendererTransientState.h"
+ 
+ @import MetalKit;
++#endif
+ 
+ NS_ASSUME_NONNULL_BEGIN
+ 
++#ifndef ITERM_NO_METAL
+ NS_CLASS_AVAILABLE(10_11, NA)
+ @interface iTermMetalCursorInfo : NSObject
+ @property (nonatomic) BOOL cursorVisible;
+@@ -115,6 +120,8 @@ NS_CLASS_AVAILABLE(10_11, NA)
+ 
+ @end
+ 
++#endif  // ITERM_NO_METAL
++
+ NS_CLASS_AVAILABLE(10_11, NA)
+ @protocol iTermMetalDriverDataSource<NSObject>
+ 
+--- a/sources/NSColor+iTerm.h
++++ b/sources/NSColor+iTerm.h
+@@ -7,7 +7,9 @@
+ //
+ 
+ #import <Cocoa/Cocoa.h>
++#ifndef ITERM_NO_METAL
+ #import <simd/simd.h>
++#endif
+ 
+ // Keys of -dictionaryValue. Use -[NSDictionary colorVaue] to convert to color.
+ extern NSString *const kEncodedColorDictionaryRedComponent;
+@@ -20,10 +22,12 @@ extern NSString *const kEncodedColorDictionaryColorSpace;  // Optional, defaults
+ extern NSString *const kEncodedColorDictionarySRGBColorSpace;
+ extern NSString *const kEncodedColorDictionaryCalibratedColorSpace;
+ 
++#ifndef ITERM_NO_METAL
+ static inline float SIMDPerceivedBrightness(vector_float4 x) {
+     static const vector_float4 y = (vector_float4){ 0.30, 0.59, 0.11, 0 };
+     return simd_dot(x, y);
+ }
++#endif
+ 
+ @interface NSColor (iTerm)
+ 
+--- a/sources/PTYSession.m
++++ b/sources/PTYSession.m
+@@ -14,7 +14,11 @@
+ #import "iTermAutomaticProfileSwitcher.h"
+ #import "iTermBuriedSessions.h"
+ #import "iTermCarbonHotKeyController.h"
++#ifdef ITERM_NO_METAL
++#import "iTermPreciseTimer.h"
++#else
+ #import "iTermCharacterSource.h"
++#endif
+ #import "iTermColorMap.h"
+ #import "iTermColorPresets.h"
+ #import "iTermCommandHistoryCommandUseMO+Addtions.h"
+@@ -568,11 +572,13 @@ static const NSUInteger kMaxHosts = 100;
+         _customEscapeSequenceNotifications = [[NSMutableDictionary alloc] init];
+         _metalDisabledTokens = [[NSMutableSet alloc] init];
+         _statusChangedAbsLine = -1;
++#ifndef ITERM_NO_METAL
+         if (@available(macOS 10.11, *)) {
+             _metalGlue = [[iTermMetalGlue alloc] init];
+             _metalGlue.delegate = self;
+             _metalGlue.screen = _screen;
+         }
++#endif
+ 
+         [[NSNotificationCenter defaultCenter] addObserver:self
+                                                  selector:@selector(coprocessChanged)
+@@ -4851,6 +4857,7 @@ ITERM_WEAKLY_REFERENCEABLE
+ }
+ 
+ - (void)setMetalContextSize:(CGSize)size {
++#ifndef ITERM_NO_METAL
+     DLog(@"%@", self);
+     if (!self.textview.window) {
+         DLog(@"No window");
+@@ -4879,6 +4886,7 @@ ITERM_WEAKLY_REFERENCEABLE
+                                           scaledSize.width * 4,  // bytes per row
+                                           [PTYSession metalColorSpace],
+                                           kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
++#endif
+ }
+ 
+ - (BOOL)metalAllowed {
+@@ -4889,9 +4897,14 @@ ITERM_WEAKLY_REFERENCEABLE
+     static dispatch_once_t onceToken;
+     static BOOL machineSupportsMetal;
+     dispatch_once(&onceToken, ^{
++#ifdef ITERM_NO_METAL
++        // 10.9 has no Metal: the legacy renderer always draws.
++        machineSupportsMetal = NO;
++#else
+         NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
+         machineSupportsMetal = devices.count > 0;
+         [devices release];
++#endif
+     });
+     if (!machineSupportsMetal) {
+         if (reason) {
+@@ -5204,6 +5217,7 @@ ITERM_WEAKLY_REFERENCEABLE
+ }
+ 
+ - (void)updateMetalDriver NS_AVAILABLE_MAC(10_11) {
++#ifndef ITERM_NO_METAL
+     DLog(@"%@", self);
+     const CGSize cellSize = CGSizeMake(_textview.charWidth, _textview.lineHeight);
+     CGSize glyphSize;
+@@ -5266,6 +5280,7 @@ ITERM_WEAKLY_REFERENCEABLE
+                   asciiOffset:asciiOffset
+                         scale:_view.window.screen.backingScaleFactor
+                       context:_metalContext];
++#endif
+ }
+ 
+ - (void)retryMetalAfterContextAllocationFailure {
+--- a/sources/SessionView.m
++++ b/sources/SessionView.m
+@@ -18,7 +18,13 @@
+ #import "SessionTitleView.h"
+ #import "SplitSelectionView.h"
+ 
++#ifdef ITERM_NO_METAL
++// No subview is an MTKView on 10.9.
++#define iTermMTKViewClass Nil
++#else
+ #import <MetalKit/MetalKit.h>
++#define iTermMTKViewClass [MTKView class]
++#endif
+ 
+ static int nextViewId;
+ static const double kTitleHeight = 22;
+@@ -219,6 +225,9 @@ static NSDate* lastResizeDate_;
+ }
+ 
+ - (id<MTLDevice>)metalDevice {
++#ifdef ITERM_NO_METAL
++    return nil;
++#else
+     static id<MTLDevice> chosenDevice;
+     static BOOL preferIntegrated;
+     static dispatch_once_t onceToken;
+@@ -253,9 +262,11 @@ static NSDate* lastResizeDate_;
+         }
+     });
+     return chosenDevice;
++#endif
+ }
+ 
+ - (void)installMetalViewWithDataSource:(id<iTermMetalDriverDataSource>)dataSource NS_AVAILABLE_MAC(10_11) {
++#ifndef ITERM_NO_METAL
+     if (_metalView) {
+         [self removeMetalView];
+     }
+@@ -300,6 +311,7 @@ static NSDate* lastResizeDate_;
+     _driver.dataSource = dataSource;
+     [_driver mtkView:_metalView drawableSizeWillChange:_metalView.drawableSize];
+     _metalView.delegate = _driver;
++#endif
+ }
+ 
+ - (void)removeMetalView NS_AVAILABLE_MAC(10_11) {
+@@ -339,7 +351,7 @@ static NSDate* lastResizeDate_;
+ - (void)addSubviewBelowFindView:(NSView *)aView {
+     if ([aView isKindOfClass:[PTYScrollView class]]) {
+         NSInteger i = [self.subviews indexOfObjectPassingTest:^BOOL(__kindof NSView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+-            return [obj isKindOfClass:[MTKView class]];
++            return [obj isKindOfClass:iTermMTKViewClass];
+         }];
+         if (i != NSNotFound) {
+             // Insert scrollview after metal view
+@@ -347,7 +359,7 @@ static NSDate* lastResizeDate_;
+             return;
+         }
+     }
+-    if ([aView isKindOfClass:[MTKView class]]) {
++    if ([aView isKindOfClass:iTermMTKViewClass]) {
+         NSInteger i = [self.subviews indexOfObjectPassingTest:^BOOL(__kindof NSView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+             return [obj isKindOfClass:[PTYScrollView class]];
+         }];
+--- a/sources/iTermAdvancedGPUSettingsViewController.m
++++ b/sources/iTermAdvancedGPUSettingsViewController.m
+@@ -7,7 +7,9 @@
+ 
+ #import "iTermAdvancedGPUSettingsViewController.h"
+ 
++#ifndef ITERM_NO_METAL
+ #import <Metal/Metal.h>
++#endif
+ 
+ @interface iTermAdvancedGPUSettingsViewController ()
+ 
+@@ -18,10 +20,11 @@
+ - (void)viewDidLoad {
+     [super viewDidLoad];
+ 
+-    NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
+-
+     BOOL foundLowPower = NO;
+     BOOL foundHighPower = NO;
++#ifndef ITERM_NO_METAL
++    NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
++
+     for (id<MTLDevice> device in devices) {
+         if (device.isLowPower) {
+             foundLowPower = YES;
+@@ -29,6 +32,7 @@
+             foundHighPower = YES;
+         }
+     }
++#endif
+ 
+     self.preferIntegratedGPU.enabled = (foundLowPower && foundHighPower);
+ }
+--- a/sources/iTermApplicationDelegate.m
++++ b/sources/iTermApplicationDelegate.m
+@@ -96,7 +96,9 @@
+ #import "TmuxDashboardController.h"
+ #import "ToastWindowController.h"
+ #import "VT100Terminal.h"
++#ifndef ITERM_NO_METAL
+ #import "iTermSubpixelModelBuilder.h"
++#endif
+ #import <Quartz/Quartz.h>
+ #import <objc/runtime.h>
+ 
+--- a/sources/iTermColorMap.h
++++ b/sources/iTermColorMap.h
+@@ -7,7 +7,9 @@
+ //
+ 
+ #import <Cocoa/Cocoa.h>
++#ifndef ITERM_NO_METAL
+ #include <simd/vector_types.h>
++#endif
+ 
+ // This would be an enum except lldb doesn't handle enums very well.
+ // (lldb) po [_colorMap colorForKey:kColorMapBackground]
+@@ -82,7 +84,9 @@ extern const int kColorMap24bitBase;
+ 
+ - (void)setColor:(NSColor *)theColor forKey:(iTermColorMapKey)theKey;
+ - (NSColor *)colorForKey:(iTermColorMapKey)theKey;
++#ifndef ITERM_NO_METAL
+ - (vector_float4)fastColorForKey:(iTermColorMapKey)theKey;
++#endif
+ 
+ // Apply the following filters in order:
+ // 1. Modify textColor to have at least self.minimumContrast against backgroundColor
+@@ -94,9 +98,13 @@ extern const int kColorMap24bitBase;
+                         overBackgroundColor:(NSColor*)backgroundColor
+                      disableMinimumContrast:(BOOL)disableMinimumContrast;
+ - (NSColor *)processedBackgroundColorForBackgroundColor:(NSColor *)color;
++#ifndef ITERM_NO_METAL
+ - (vector_float4)fastProcessedBackgroundColorForBackgroundColor:(vector_float4)backgroundColor;
++#endif
+ - (NSColor *)colorByMutingColor:(NSColor *)color;
++#ifndef ITERM_NO_METAL
+ - (vector_float4)fastColorByMutingColor:(vector_float4)color;
++#endif
+ - (NSColor *)colorByDimmingTextColor:(NSColor *)color;
+ 
+ // Returns non-nil profile key name for valid logical colors, ANSI colors, and bright ANSI colors.
+--- a/sources/iTermColorMap.mm
++++ b/sources/iTermColorMap.mm
+@@ -10,7 +10,15 @@
+ #import "ITAddressBookMgr.h"
+ #import "NSColor+iTerm.h"
+ #include <unordered_map>
++#ifdef ITERM_NO_METAL
++// 10.9's SDK has no <simd/>; the muting arithmetic below needs only clang's own vector type.
++typedef float vector_float4 __attribute__((ext_vector_type(4)));
++static inline vector_float4 simd_make_float4(float x, float y, float z, float w) {
++    return (vector_float4){ x, y, z, w };
++}
++#else
+ #import <simd/simd.h>
++#endif
+ 
+ const int kColorMapForeground = 0;
+ const int kColorMapBackground = 1;
+--- a/sources/iTermNoMetal.h
++++ b/sources/iTermNoMetal.h
+@@ -0,0 +1,28 @@
++//
++//  iTermNoMetal.h
++//  iTerm2
++//
++//  Mac OS X 10.9 has no Metal. With ITERM_NO_METAL, these are the Metal and MetalKit names the
++//  legacy renderer's code still mentions, declared without either framework. Nothing declared here is
++//  ever created: -[PTYSession metalAllowed:] answers NO (iTermMetalUnavailableReasonNoGPU) first.
++//
++
++#import <Cocoa/Cocoa.h>
++
++@protocol MTLDevice <NSObject>
++@end
++
++@protocol MTKViewDelegate <NSObject>
++@end
++
++@interface MTKView : NSView
++@property (nonatomic, assign) id<MTKViewDelegate> delegate;
++@property (nonatomic, retain) id<MTLDevice> device;
++@property (nonatomic) CGColorSpaceRef colorspace;
++@property (nonatomic, getter=isPaused) BOOL paused;
++@property (nonatomic) BOOL enableSetNeedsDisplay;
++@property (nonatomic) CGSize drawableSize;
++- (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size;
++@end
++
++@protocol iTermMetalDriverDataSourcePerFrameState;

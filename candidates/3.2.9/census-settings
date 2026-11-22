@@ -6,7 +6,7 @@ PREFIX_HEADER=
 C_STANDARD=99
 C_EXTENSIONS=OFF
 INCLUDES=sources/proto . ThirdParty ColorPicker
-DEFINES=
+DEFINES=ITERM_NO_METAL
 METADATA=ON
 
 TARGET=iTerm2Shared
@@ -15,8 +15,8 @@ ARC=OFF
 PREFIX_HEADER=sources/iTerm2.pch
 C_STANDARD=99
 C_EXTENSIONS=ON
-INCLUDES=sources/proto ThirdParty ColorPicker
-DEFINES=
+INCLUDES=sources/proto ThirdParty ColorPicker sources/Metal/Support
+DEFINES=ITERM_NO_METAL
 METADATA=ON
 
 TARGET=iTerm2SharedARC
@@ -26,7 +26,7 @@ PREFIX_HEADER=sources/iTerm2.pch
 C_STANDARD=99
 C_EXTENSIONS=ON
 INCLUDES=sources/proto ThirdParty ColorPicker
-DEFINES=
+DEFINES=ITERM_NO_METAL
 METADATA=ON
 
 TARGET=SSKeychain
