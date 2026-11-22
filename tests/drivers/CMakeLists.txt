@@ -6,6 +6,7 @@ iterm_add_driver(tmux-control-c tmux-control-c-driver.m fake-tmux.m)
 iterm_add_driver(tmux-injection tmux-injection-driver.m fake-tmux.m)
 iterm_add_driver(support-directory support-directory-driver.m)
 iterm_add_driver(url-command url-command-driver.m)
+iterm_add_driver(scp-failure scp-failure-driver.m)
 iterm_add_driver(restart-for-update restart-for-update-driver.m)
 iterm_add_driver(updater-preferences updater-preferences-driver.m)
 # spec: SMOKE.md check 5 -- a bare executable's main bundle is its own directory, so image_decoder and its
