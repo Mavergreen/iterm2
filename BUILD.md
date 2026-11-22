@@ -25,7 +25,7 @@ Configure receives `inputs.cmake` as `ITERM_INPUTS_FILE` (the presets set it). `
 - `summary.tsv`: per target, the number of sources compiled, ok and failing;
 - `symbols.tsv`: each missing symbol, with how many sources it breaks.
 
-The settings file is data, one block per Xcode target, copied by hand from that candidate's project the way the rows in `cmake/ITermTargets.cmake` are (keys in `cmake/ITermCensus.cmake`). A target with no block is not compiled, and a block for a target the project lacks is refused. 3.0.15 with its patches is the control: it compiles with no errors, so what a candidate's census reports is the candidate's, not the census's. The census needs Ninja, and runs natively on 10.9 or cross on a modern Mac.
+The settings file is data, one block per Xcode target, copied by hand from that candidate's project the way the rows in `cmake/ITermTargets.cmake` are (keys in `cmake/ITermCensus.cmake`). A target with no block is not compiled, and a block for a target the project lacks is refused. Each row is one compile, named by its object file, so a source in two targets is judged once per target. A compile is ok only if its object exists, and a source with neither an object nor a failed compile makes the census fail rather than read as clean. The tables cannot tell a use guarded by `@available` or `respondsToSelector:` from an unguarded one; that judgment is made by hand. 3.0.15 with its patches is the control: it compiles with no errors, so what a candidate's census reports is the candidate's, not the census's. The census needs Ninja, and runs natively on 10.9 or cross on a modern Mac.
 
 ## Targets
 

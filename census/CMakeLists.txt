@@ -8,6 +8,8 @@ foreach(_iterm_lang CXX OBJCXX)
   set(CMAKE_${_iterm_lang}_COMPILER "${_iterm_cl_dir}/clang++")
 endforeach()
 project(iTerm2Census LANGUAGES C CXX OBJC OBJCXX)
+# spec: BUILD.md "Census" -- each compile's source and object, which census-classify.sh judges it by
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 iterm_check_compiler()
 
 find_package(MavericksShipyard REQUIRED)
@@ -29,4 +31,4 @@ iterm_census(
   SDK "${CMAKE_OSX_SYSROOT}"
   RECIPES "${ITERM_RECAULK_RECIPES}"
   METADATA_DIR "${CMAKE_BINARY_DIR}/sdk-metadata"
-  LIST_FILE "${CMAKE_BINARY_DIR}/census-sources.tsv")
+  LIST_FILE "${CMAKE_BINARY_DIR}/census-targets.tsv")

@@ -16,6 +16,8 @@ for a in "$1" "$2" "$3"; do case "$a" in /*) ;; *) die "paths must be absolute: 
 [ -f "$2" ] || die "no settings file $2"
 mkdir -p "$3"
 OUT=$(CDPATH= cd "$3" && pwd -P)
+# spec: BUILD.md "Census" -- OUT_DIR/build is removed before each run, so OUT_DIR is never the checkout
+case "$OUT/" in "$(CDPATH= cd "$REPO_ROOT" && pwd -P)/"*) die "OUT_DIR is inside the checkout: $OUT" ;; esac
 rm -f "$OUT/census.tsv" "$OUT/summary.tsv" "$OUT/symbols.tsv"
 . "$REPO_ROOT/build/msc.sh"
 mode=$(sh "$SHIPYARD_SCRIPTS/mavericks_mode.sh")
@@ -32,6 +34,8 @@ rm -rf "$OUT/build"
   -DITERM_INPUTS_FILE="$1/inputs.cmake" -DITERM_CENSUS_SETTINGS="$2" \
   -DITERM_CENSUS_PROJECT="${ITERM_CENSUS_PROJECT:-iTerm2.xcodeproj}" >"$OUT/configure.log" 2>&1 \
   || { tail -20 "$OUT/configure.log" >&2; die "the census did not configure (log: $OUT/configure.log)"; }
+# platform: failing compiles make the build fail; census-classify.sh then refuses any source that has
+#           neither an object nor a FAILED: line, so a build that stopped early cannot read as clean
 "$CMAKE" --build "$OUT/build" -- -k 0 >"$OUT/build.log" 2>&1 || :
-sh "$REPO_ROOT/build/census-classify.sh" "$OUT/build.log" "$OUT/build/census-sources.tsv" "$OUT"
+sh "$REPO_ROOT/build/census-classify.sh" "$OUT/build.log" "$OUT/build" "$OUT"
 awk -F '\t' 'NR > 1 { c += $2; o += $3; e += $4 } END { printf "census: %d compiled, %d ok, %d with errors\n", c, o, e }' "$OUT/summary.tsv"

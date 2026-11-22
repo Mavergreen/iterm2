@@ -16,7 +16,7 @@
 #     METADATA       ON | OFF: the Recaulk SDK-metadata overlay
 #   Each block is copied by hand from that candidate's pbxproj, like ITermTargets.cmake's rows; a missing,
 #   repeated or unknown key, or a target PROJECT does not have, is refused, never defaulted.
-#   LIST_FILE gets one "<target>\t<absolute source>" line per compiled source.
+#   LIST_FILE gets one "<prefix>\t<target>" line per target (census_<prefix> is its object library).
 #
 # spec: BUILD.md "Census" -- compiled at -O0 with no error limit: the census wants every diagnostic, not code.
 
@@ -130,11 +130,11 @@ function(iterm_census)
         message(FATAL_ERROR "iterm_census: ${B${i}_TARGET} lists ${s}, which ${A_SOURCE_DIR} does not have")
       endif()
       list(APPEND srcs "${A_SOURCE_DIR}/${s}")
-      string(APPEND listing "${B${i}_TARGET}\t${A_SOURCE_DIR}/${s}\n")
     endforeach()
     if(NOT srcs)
       message(FATAL_ERROR "iterm_census: the export lists no sources for ${B${i}_TARGET}")
     endif()
+    string(APPEND listing "${P}\t${B${i}_TARGET}\n")
     add_library(${t} OBJECT ${srcs})
     set_target_properties(${t} PROPERTIES
       C_STANDARD ${B${i}_C_STANDARD} C_EXTENSIONS ${B${i}_C_EXTENSIONS}

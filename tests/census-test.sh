@@ -39,8 +39,8 @@ EOC
 census() { # settings out
   ITERM_CENSUS_PROJECT=fx.xcodeproj sh "$REPO_ROOT/build/census.sh" "$T/inputs" "$1" "$2" >"$T/log" 2>&1
 }
-row() { # file -- census.tsv's row for a source, as status<TAB>kind<TAB>symbol
-  awk -F '\t' -v f="$1" '$2 ~ ("/" f "$") { print $3 "\t" $4 "\t" $5 }' "$T/out/census.tsv"
+row() { # file [target [out]] -- census.tsv's row for a source, as status<TAB>kind<TAB>symbol
+  awk -F '\t' -v f="$1" -v t="${2:-App}" '$1 == t && substr($2, length($2) - length(f)) == ("/" f) { print $3 "\t" $4 "\t" $5 }' "${3:-$T/out}/census.tsv"
 }
 TAB=$(printf '\t')
 
@@ -50,13 +50,37 @@ if [ -f "$T/out/census.tsv" ]; then
   [ "$(row gap.m)" = "error${TAB}no-method${TAB}currentDrawingAppearance" ] || fail "missing_api_classified: gap.m is '$(row gap.m)'"
   [ "$(row hdr.m)" = "error${TAB}missing-header${TAB}UserNotifications/UserNotifications.h" ] \
     || fail "missing_header_classified: hdr.m is '$(row hdr.m)'"
-  grep -qx "App${TAB}5${TAB}1${TAB}4" "$T/out/summary.tsv" || fail "summary_counts: App is not 5 compiled, 1 ok, 4 error: $(cat "$T/out/summary.tsv")"
-  grep -qx "Lib${TAB}1${TAB}1${TAB}0" "$T/out/summary.tsv" || fail "summary_counts: Lib is not 1 compiled, 1 ok"
+  grep -qx "App${TAB}6${TAB}1${TAB}5" "$T/out/summary.tsv" || fail "summary_counts: App is not 6 compiled, 1 ok, 5 error: $(cat "$T/out/summary.tsv")"
+  grep -qx "Lib${TAB}2${TAB}2${TAB}0" "$T/out/summary.tsv" || fail "summary_counts: Lib is not 2 compiled, 2 ok: $(cat "$T/out/summary.tsv")"
+  # spec: BUILD.md "Census" -- a source in two targets is judged once per target: under ARC (App) shared.m's
+  #       retain is an error, under MRC (Lib) it is fine
+  [ "$(row shared.m App | cut -f1)" = error ] || fail "shared_source_per_target: App's shared.m is '$(row shared.m App)'"
+  [ "$(row shared.m Lib | cut -f1)" = ok ] || fail "shared_source_per_target: Lib's shared.m is '$(row shared.m Lib)'"
   grep -qx "undeclared-identifier${TAB}NSAppearanceNameDarkAqua${TAB}2" "$T/out/symbols.tsv" \
     || fail "symbols_deduplicated: $(grep DarkAqua "$T/out/symbols.tsv")"
 else
   fail "census.sh wrote no census.tsv"
 fi
+
+# spec: BUILD.md "Census" -- a source path with a space is still attributed: Ninja shell-quotes it on the command line
+cp -R "$T/src" "$T/sp ace"
+sed "s|\\[==\\[$T/src\\]==\\]|[==[$T/sp ace]==]|" "$T/inputs/inputs.cmake" > "$T/inputs/i" && mv "$T/inputs/i" "$T/inputs/inputs.cmake"
+census "$T/sp ace/settings" "$T/outsp" || { tail -20 "$T/log" >&2; fail "path_with_space: census.sh failed"; }
+[ "$(row gap.m App "$T/outsp" | cut -f1)" = error ] || fail "path_with_space: gap.m in a spaced path is '$(row gap.m App "$T/outsp")'"
+grep -qx "App${TAB}6${TAB}1${TAB}5" "$T/outsp/summary.tsv" 2>/dev/null || fail "path_with_space: summary is $(cat "$T/outsp/summary.tsv" 2>/dev/null)"
+
+# spec: BUILD.md "Census" -- OUT_DIR's build tree is removed before a run, so OUT_DIR may not be the checkout or inside it
+if census "$T/src/settings" "$REPO_ROOT/census-out-test"; then fail "out_dir_inside_checkout_refused: accepted"; fi
+grep -q 'OUT_DIR is inside the checkout' "$T/log" || fail "out_dir_inside_checkout_refused: $(tail -1 "$T/log")"
+rm -rf "$REPO_ROOT/census-out-test"
+
+# spec: BUILD.md "Census" -- a listed source with neither an object nor a FAILED: compile was never compiled, and the census says so
+mkdir -p "$T/cls/build"
+printf '[\n{\n  "directory": "%s",\n  "command": "clang -c /x/a.m",\n  "file": "/x/a.m",\n  "output": "CMakeFiles/census_APP.dir/x/a.m.o"\n}\n]\n' "$T/cls/build" > "$T/cls/build/compile_commands.json"
+printf 'APP\tApp\n' > "$T/cls/build/census-targets.tsv"
+: > "$T/cls/build.log"
+if sh "$REPO_ROOT/build/census-classify.sh" "$T/cls/build.log" "$T/cls/build" "$T/cls" >"$T/log" 2>&1; then fail "uncompiled_source_refused: classified as if compiled"; fi
+grep -q 'never compiled' "$T/log" || fail "uncompiled_source_refused: $(tail -1 "$T/log")"
 
 sed '/^TARGET=Lib$/s/Lib/Nope/' "$T/src/settings" > "$T/bad-target"
 if census "$T/bad-target" "$T/out2"; then fail "unknown_target_refused: a target the project lacks was accepted"; fi
