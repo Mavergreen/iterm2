@@ -8,9 +8,8 @@ This repository builds iTerm2 3.0.15 for Mac OS X 10.9 (x86_64), natively on 10.
 | Upstream's compiled resources (29 nibs, the Core Data model) | `components/iterm2-resources/version`: the official release ZIP's URL, SHA-256 and `VERSION` | Moves with the source, by hand | `VERSION` must equal `UPSTREAM_VERSION`. Measured hashes of the selected members are in the resource manifest. |
 | Framework dispositions | `components/dependencies.tsv` | Not versioned | ColorPicker is rebuilt from the pinned source; Growl, NMSSH and Sparkle are dropped (see PORT.md). |
 | Carried patches | `patches/*.patch` | Maintained here | Reasons and retirement conditions are in PORT.md. |
-| clang22 (`clang22` on 10.9, `clang22-cross` on a modern Mac), with the Recaulk its `clang.cfg` links | `components/clang22/version` = `22.1.8-mavericks.12` | `github-releases` on `Mavergreen/clang-22` | `build/prepare-inputs.sh` refuses an installed release other than the pin and passes that tree's `clang` to CMake. |
-| Recaulk's SDK-metadata recipes | `components/recaulk/version` = `20261108.2`, read from `/usr/local/mavergreen/recaulk/share/sdk-metadata/recipes.json` | `github-releases` on `Mavergreen/recaulk` | The 21 ids the targets select are `ITERM_METADATA_IDS` in `cmake/ITermMetadata.cmake`; a bump keeps every id, or the sweep (`build/sweep.sh`) shows what a dropped one breaks. Only the recipe data is used from the standalone product; the Recaulk linked into binaries is clang22's own. |
-| clang22's Linux archive (collect job only) | `components/clang22/linux-sha256`: that archive's line of the pinned release's `SHA256SUMS` | Moved by hand with the clang22 pin; the clang22 PR says so | `fetch_clang22.sh` verifies the archive whose Mach-O readers check the pkg on Linux. Nothing shipped changes. |
+| clang22 (`clang22` on 10.9, `clang22-cross` on a modern Mac), with the Recaulk its `clang.cfg` links | `components/clang22/version` | `github-releases` on `Mavergreen/clang-22` | `build/prepare-inputs.sh` refuses an installed release other than the pin and passes that tree's `clang` to CMake. |
+| Recaulk's SDK-metadata recipes | `components/recaulk/version`, read from `/usr/local/mavergreen/recaulk/share/sdk-metadata/recipes.json` | `github-releases` on `Mavergreen/recaulk` | The 21 ids the targets select are `ITERM_METADATA_IDS` in `cmake/ITermMetadata.cmake`; a bump keeps every id, or the sweep (`build/sweep.sh`) shows what a dropped one breaks. Only the recipe data is used from the standalone product; the Recaulk linked into binaries is clang22's own. |
 | Longboat (CI only) | `components/longboat/version` | `github-releases`, `YYYYMMDD.N` versioning | CI installs it for the 10.9 SDK that the clang22 pkgs require. Nothing shipped changes; no repackage. |
 | shipyard: presets, toolchain, the pinned 10.9 SDK, `MavericksSDKMetadata`, `MavericksXcodeInputs`, `MavericksResourceInputs`, `MavericksHostTools`, fetch and patch scripts | the installed shipyard pkg; in CI, `install@v1`, which also brings Sparkle 1.27.3 for the updater | Untrackable here: shipyard moves by its own releases | `build/prepare-inputs.sh` refuses a shipyard without the four modules. |
 
@@ -20,7 +19,7 @@ This repository builds iTerm2 3.0.15 for Mac OS X 10.9 (x86_64), natively on 10.
 
 ## Repackaging
 
-`.github/workflows/repackage-on-ingredient-bump.yml` dispatches a `-mavericks.N+1` repackage when the clang22 or Recaulk pin moves on `main`. The upstream's own pins (`UPSTREAM_VERSION`, `components/iterm2/version`, `components/iterm2-resources/version`) make a new upstream release instead. Longboat and `components/clang22/linux-sha256` change nothing shipped, so they cut nothing.
+`.github/workflows/repackage-on-ingredient-bump.yml` dispatches a `-mavericks.N+1` repackage when the clang22 or Recaulk pin moves on `main`. The upstream's own pins (`UPSTREAM_VERSION`, `components/iterm2/version`, `components/iterm2-resources/version`) make a new upstream release instead. Longboat changes nothing shipped, so it cuts nothing.
 
 ## Declared state
 

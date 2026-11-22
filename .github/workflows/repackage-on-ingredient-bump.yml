@@ -1,8 +1,8 @@
 name: repackage-on-ingredient-bump
 
-# spec: INGREDIENTS.md "Repackaging" -- the pins the shipped app is built with. Longboat and
-#       components/clang22/linux-sha256 change nothing shipped, and the upstream's own pins make a new
-#       upstream release instead; shipyard's ingredient-pins.sh reads this list for the release notes.
+# spec: INGREDIENTS.md "Repackaging" -- the pins the shipped app is built with. Longboat changes
+#       nothing shipped, and the upstream's own pins make a new upstream release instead; shipyard's
+#       ingredient-pins.sh reads this list for the release notes.
 on:
   push:
     branches: [main]
