@@ -33,5 +33,6 @@ and 0011 apply unchanged; 0002, 0005 and 0009 are upstream's own code by 3.2.9; 
 0012 must be ported again. shipyard's exporter (v1.0.810 and later) lists the Metal shaders as not
 compiled; the build leaves them out, since 10.9 has no Metal. Patch 0013 makes the legacy renderer always
 draw (`ITERM_NO_METAL`, which the table and the census settings define), and the table leaves out the
-renderer's 37 sources. The census compiles 515 files. Configure gets past the targets and stops at the
+renderer's 37 sources. Patch 0014 includes `<sys/socket.h>` where upstream relied on Clang modules, which
+this build does not enable. With Recaulk 20261122.5 the census compiles 417 of 515 files cleanly. Configure gets past the targets and stops at the
 resources: `resources/compiled.tsv` lists 3.0.15's compiled resources, and 3.2.9 needs its own.

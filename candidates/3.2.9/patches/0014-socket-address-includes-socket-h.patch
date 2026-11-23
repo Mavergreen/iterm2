@@ -1,0 +1,18 @@
+iTermSocketAddress.h includes <sys/socket.h> for socklen_t.
+
+The header uses socklen_t but imports only Foundation. Upstream builds
+with Clang modules, where the Foundation module re-exports Darwin; this
+build compiles without modules (BUILD.md "Targets"), and no SDK's
+Foundation headers reach <sys/socket.h> on their own, so the five files
+that import this header did not compile.
+
+--- a/sources/iTermSocketAddress.h
++++ b/sources/iTermSocketAddress.h
+@@ -7,6 +7,7 @@
+ //
+ 
+ #import <Foundation/Foundation.h>
++#include <sys/socket.h>
+ 
+ @class iTermIPV4Address;
+ 
