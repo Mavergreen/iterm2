@@ -141,7 +141,7 @@ fixture 'list(APPEND ITERM_ROW_iTerm2Shared CXX_STANDARD "gnu++11 -O0")' && fail
   || grep -q 'ITERM_TARGETS_FILE' "$T/log" || fail "missing_table_refused: the refusal does not name ITERM_TARGETS_FILE"
 
 # spec: candidates/README.md -- the 3.2.9 table: iTerm2SharedARC (new since 3.0.15), ARC, its pch, sources/proto first
-printf 'include("%s")\nforeach(t IN LISTS ITERM_TARGETS)\n  message("${t}: ${ITERM_ROW_${t}}")\nendforeach()\nmessage("LANGUAGES: ${ITERM_LANGUAGES}")\n' \
+printf 'include("%s")\nforeach(t IN LISTS ITERM_TARGETS)\n  message("${t}: ${ITERM_ROW_${t}}")\nendforeach()\nmessage("LANGUAGES: ${ITERM_LANGUAGES}")\nmessage("METADATA: ${ITERM_METADATA_IDS}")\n' \
   "$REPO_ROOT/candidates/3.2.9/targets.cmake" > "$T/read-table.cmake"
 "$CMAKE" -P "$T/read-table.cmake" > "$T/table.txt" 2>&1 || fail "candidate_table_has_shared_arc: the 3.2.9 table does not load: $(tail -1 "$T/table.txt")"
 row=$(grep '^iTerm2SharedARC: ' "$T/table.txt" || :)
@@ -153,6 +153,19 @@ grep -q '^iTerm2: .*LINK;iTerm2Shared;iTerm2SharedARC' "$T/table.txt" || fail "c
 grep -q '^LANGUAGES: C;OBJC;CXX;OBJCXX$' "$T/table.txt" || fail "candidate_table_languages: $(grep LANGUAGES "$T/table.txt")"
 printf 'include("%s")\nmessage("LANGUAGES: ${ITERM_LANGUAGES}")\n' "$REPO_ROOT/cmake/targets/3.0.15.cmake" > "$T/read-ship.cmake"
 [ "$("$CMAKE" -P "$T/read-ship.cmake" 2>&1)" = "LANGUAGES: C;OBJC" ] || fail "shipping_table_languages: 3.0.15 is not C;OBJC"
+# spec: BUILD.md "Targets" -- the Recaulk recipes come with the table: each upstream selects its own, and the
+#       shipping table keeps exactly the ones it had
+for id in appkit-accessibility-protocols-v1 foundation-objcruntime-macros-v2 corefoundation-availability-v1 foundation-string-contains-v1; do
+  grep -q "^METADATA: .*$id" "$T/table.txt" || fail "candidate_table_metadata_ids: no $id"
+done
+grep -q '^METADATA: .*foundation-objcruntime-macros-v1' "$T/table.txt" && fail "candidate_table_metadata_ids: still selects foundation-objcruntime-macros-v1"
+printf 'include("%s")\nmessage("${ITERM_METADATA_IDS}")\n' "$REPO_ROOT/cmake/targets/3.0.15.cmake" > "$T/read-ship-ids.cmake"
+[ "$("$CMAKE" -P "$T/read-ship-ids.cmake" 2>&1)" = "foundation-array-generics-v2;foundation-dictionary-generics-v1;foundation-set-generics-v1;foundation-orderedset-generics-v1;foundation-maptable-generics-v1;foundation-enumerator-generics-v1;foundation-directoryenumerator-generics-v1;foundation-objcruntime-macros-v1;foundation-rectedge-v1;appkit-view-properties-v1;appkit-control-properties-v1;appkit-cell-properties-v1;appkit-textfield-properties-v1;appkit-windowcontroller-properties-v1;appkit-event-stage-v1;appkit-window-v1;appkit-titlebar-accessory-v1;appkit-searchfield-delegate-v1;appkit-textalignment-v1;webkit-wkwebview-v1;launchservices-default-app-v2" ] \
+  || fail "shipping_table_metadata_ids: 3.0.15's recipes changed"
+sed '/ITERM_METADATA_IDS/,/)/d' "$REPO_ROOT/cmake/targets/3.0.15.cmake" > "$T/no-ids.cmake"
+grep -q ITERM_METADATA_IDS "$T/no-ids.cmake" && fail "table_without_metadata_ids_refused: fixture still names them"
+(TABLE="$T/no-ids.cmake" fixture '') && fail "table_without_metadata_ids_refused: accepted" \
+  || grep -q 'ITERM_METADATA_IDS' "$T/log" || fail "table_without_metadata_ids_refused: the refusal does not name ITERM_METADATA_IDS"
 
 fixture 'list(APPEND ITERM_ROW_SSKeychain WARNINGS -Wall)' && fail "an unknown setting was accepted" \
   || grep -q 'WARNINGS' "$T/log" || fail "the refusal does not name the unknown setting"

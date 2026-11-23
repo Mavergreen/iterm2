@@ -39,6 +39,7 @@ function(mavericks_target_sdk_metadata)
   cmake_parse_arguments(A "" "TARGET;SDK;RECIPES;OUTPUT_DIR" "IDS" \${ARGN})
   set_property(GLOBAL APPEND PROPERTY FIXTURE_METADATA "\${A_TARGET}:\${A_IDS}:\${A_SDK}")
 endfunction()
+set(ITERM_TARGETS_FILE "$REPO_ROOT/cmake/targets/3.0.15.cmake")
 include("$REPO_ROOT/cmake/ITermColorPicker.cmake")
 iterm_add_colorpicker(SOURCES_FILE "$T/colorpicker-sources.cmake" SOURCE_DIR "$S"
                       SDK "$T/sdk" RECIPES "$T/recipes.json" METADATA_DIR "\${CMAKE_BINARY_DIR}/sdk-metadata")
