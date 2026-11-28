@@ -115,7 +115,7 @@ CTEST=$(cache CMAKE_CTEST_COMMAND)
 if [ -n "$CTEST" ] && "$CTEST" --test-dir "$B" -N -L driver 2>/dev/null | grep -q 'Test *#'; then
   if [ "$status" != PASS ]; then
     drivers=UNMEASURED; drivers_reason="the build did not pass, so its drivers did not run"
-  elif [ "$(cache MAVERICKS_EXPECTED_MODE)" = cross ]; then
+  elif [ "$(cache ITERM_MODE)" = modern ]; then
     drivers=UNMEASURED; drivers_reason="cross build: x86_64 10.9 drivers do not run here"
   elif "$CMAKE" --build "$B" --target drivers >>"$E/build.log" 2>&1 \
        && "$CTEST" --test-dir "$B" -L driver --output-on-failure >>"$E/build.log" 2>&1; then
@@ -140,7 +140,7 @@ cat > "$E/findings.json" <<EOF
   "reasons": "$(j "$reasons")",
   "started": "$started",
   "host": {"os": "$(j "$(sw_vers -productVersion 2>/dev/null)")", "arch": "$(j "$(uname -m)")", "name": "$(j "$(uname -n)")"},
-  "mode": "$(j "$(cache MAVERICKS_EXPECTED_MODE)")",
+  "mode": "$(j "$(cache ITERM_MODE)")",
   "compiler": "$(j "$compiler")",
   "compiler_version": "$(j "$compiler_version")",
   "shipyard": {"version": "$(j "$shipyard_version")", "modules": "$(j "$shipyard_modules")"},

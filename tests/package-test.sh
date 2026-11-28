@@ -72,7 +72,7 @@ else
   cat "$T/log" >&2; fail "package-pkg.sh refused good stand-ins"
 fi
 
-B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-native}
+B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-x86_64}
 if [ -d "$B/iTerm2.app" ] && [ -d "$B/iterm2-updater.app" ]; then
   RV=$(sed -n 's/^\(.*-mavericks\.[0-9]*\)$/\1/p' "$B/VERSION" 2>/dev/null || true)
   [ -n "$RV" ] || RV=$("$(sh "$SHIPYARD_SCRIPTS/fetch_stevedore.sh")" plist get "$B/iTerm2.app/Contents/Info.plist" CFBundleShortVersionString)

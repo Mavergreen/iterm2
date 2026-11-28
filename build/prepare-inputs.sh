@@ -115,8 +115,8 @@ installed() {
 }
 mode=$(sh "$SHIPYARD_SCRIPTS/mavericks_mode.sh")
 case "$mode" in
-  native) clang_short=clang22 ;;
-  cross) clang_short=clang22-cross ;;
+  mavericks) clang_short=clang22 ;;
+  modern) clang_short=clang22-cross ;;
   *) die "mavericks_mode.sh answered '$mode'" ;;
 esac
 installed "$clang_short" "$clang_pin"

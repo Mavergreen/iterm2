@@ -8,13 +8,10 @@
         "ITERM_INPUTS_FILE": "$env{MAVERICKS_BUILD_ROOT}/${sourceDirName}-inputs/inputs.cmake",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       } },
-    { "name": "native", "inherits": ["mavericks-native", "inputs"],
-      "displayName": "native -- iTerm2 on Mavericks 10.9, with the verified installed clang22" },
-    { "name": "cross", "inherits": ["mavericks-cross", "inputs"],
-      "displayName": "cross -- iTerm2 for 10.9 on a modern Mac, with the verified installed clang22-cross" }
+    { "name": "x86_64", "inherits": ["mavericks-x86_64", "inputs"],
+      "displayName": "x86_64 -- iTerm2 for 10.9 on any host, with the verified installed clang22 (clang22-cross on a modern Mac)" }
   ],
   "buildPresets": [
-    { "name": "native", "configurePreset": "native" },
-    { "name": "cross", "configurePreset": "cross" }
+    { "name": "x86_64", "configurePreset": "x86_64" }
   ]
 }

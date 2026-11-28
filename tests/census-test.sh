@@ -16,7 +16,7 @@ SCRIPTS=/usr/local/mavergreen/shipyard/share/cmake/MavericksShipyard/scripts
 [ -x /usr/local/mavergreen/bin/shipyard-cmake ] && [ -d "$SCRIPTS" ] \
   || { echo "census-test: SKIP: no installed shipyard"; exit 77; }
 case "$(sh "$SCRIPTS/mavericks_mode.sh")" in
-  native) CL=clang22 ;; cross) CL=clang22-cross ;; *) echo "census-test: SKIP: no mode"; exit 77 ;;
+  mavericks) CL=clang22 ;; modern) CL=clang22-cross ;; *) echo "census-test: SKIP: no mode"; exit 77 ;;
 esac
 COMPILER=/usr/local/mavergreen/$CL/bin/clang
 RECIPES=/usr/local/mavergreen/recaulk/share/sdk-metadata/recipes.json

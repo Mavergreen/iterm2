@@ -99,7 +99,7 @@ jobs:
       - name: Cross-build the app and its updater for x86_64 10.9, with the build's evidence
         run: |
           set -eu
-          shipyard-cmake --preset cross -B "$B" -DITERM_INPUTS_FILE="$RUNNER_TEMP/inputs/inputs.cmake"
+          shipyard-cmake --preset x86_64 -B "$B" -DITERM_INPUTS_FILE="$RUNNER_TEMP/inputs/inputs.cmake"
           sh build/record-build.sh "$B" "$E"
       - name: The driver tests, packed for the 10.9 guest
         run: |

@@ -186,7 +186,7 @@ gate() { # COMPILER [EXTRA-ARGS...] -- configure the real CMakeLists with fixtur
   c=$1; shift
   rm -rf "$T/g"; mkdir -p "$T/g"
   : > "$T/g/resources.zip"; : > "$T/g/recipes.json"; : > "$T/g/deps.tsv"
-  printf 'set(ITERM_UPSTREAM_VERSION 3.0.15)\nset(ITERM_SOURCE_DIR [[%s]])\nset(ITERM_RESOURCES_ZIP [[%s]])\nset(ITERM_RESOURCES_SHA256 %s)\nset(ITERM_CLANG22_VERSION %s)\nset(ITERM_RECAULK_RECIPES [[%s]])\nset(ITERM_CLANG22_COMPILER [[%s]])\nset(ITERM_DEPENDENCY_MANIFEST [[%s]])\nset(ITERM_MODE native)\nset(ITERM_TARGETS_FILE [[%s]])\n%s\n' \
+  printf 'set(ITERM_UPSTREAM_VERSION 3.0.15)\nset(ITERM_SOURCE_DIR [[%s]])\nset(ITERM_RESOURCES_ZIP [[%s]])\nset(ITERM_RESOURCES_SHA256 %s)\nset(ITERM_CLANG22_VERSION %s)\nset(ITERM_RECAULK_RECIPES [[%s]])\nset(ITERM_CLANG22_COMPILER [[%s]])\nset(ITERM_DEPENDENCY_MANIFEST [[%s]])\nset(ITERM_MODE mavericks)\nset(ITERM_TARGETS_FILE [[%s]])\n%s\n' \
     "$S" "$T/g/resources.zip" "${GATE_SHA:-90e6f2bd3eb2d245f4ab2c9f856c627c8a1536bac024fb3989db417bc3147565}" \
     "${GATE_PIN:-22.1.8-mavericks.12}" "$T/g/recipes.json" "$c" "$T/g/deps.tsv" "$REPO_ROOT/cmake/targets/3.0.15.cmake" "${GATE_PATCHES-set(ITERM_PATCHES_DIR [[$T/patches]])}" > "$T/g/inputs.cmake"
   # platform: CMake defaults to the host's arch, arm64 on Apple Silicon, which the 10.9 SDK lacks, and its

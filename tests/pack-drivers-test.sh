@@ -6,7 +6,7 @@ set -eu
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
-B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-native}
+B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-x86_64}
 ls "$B"/tests/drivers/driver-* > /dev/null 2>&1 || { echo "pack-drivers-test: no drivers built in $B; skipping"; exit 77; }
 OTOOL=
 for d in /usr/local/mavergreen/clang22/bin /usr/local/mavergreen/clang22-cross/bin; do

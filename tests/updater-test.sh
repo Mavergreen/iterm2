@@ -8,7 +8,7 @@ REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 fails=0
 fail() { echo "FAIL: $*" >&2; fails=$((fails + 1)); }
 . "$REPO_ROOT/build/msc.sh"
-B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-native}
+B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-x86_64}
 APP=$B/iTerm2.app
 UPD=$B/iterm2-updater.app
 [ -d "$APP" ] || { echo "updater-test: no native build at $B; skipping"; exit 77; }

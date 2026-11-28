@@ -142,7 +142,7 @@ else
     && grep -q 'drivers failed' "$T/drvfail-evidence/findings.json" && grep -q 'driver.drvfail' "$T/drvfail-evidence/build.log" \
     || fail "native build records drivers: a failing driver did not BLOCK, naming it"
 fi
-drivers drvcross "$T/bad.c" 'set(MAVERICKS_EXPECTED_MODE cross CACHE STRING "")'
+drivers drvcross "$T/bad.c" 'set(ITERM_MODE modern CACHE STRING "")'
 [ "$rc" -eq 0 ] && [ "$(field drvcross build_status)" = PASS ] && [ "$(field drvcross drivers)" = UNMEASURED ] \
   && grep -q '"drivers_reason": "cross build: x86_64 10.9 drivers do not run here"' "$T/drvcross-evidence/findings.json" \
   || fail "cross build records drivers UNMEASURED"

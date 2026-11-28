@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- configures the census with shipyard's native (10.9) or cross (modern Mac) preset.
+# platform: macOS-only -- configures the census with shipyard's x86_64 preset, on 10.9 or a modern Mac.
 #   usage: census.sh INPUTS_ROOT SETTINGS_FILE OUT_DIR
 #          Compiles every source of the targets SETTINGS_FILE names (see cmake/ITermCensus.cmake) from the
 #          inputs build/prepare-inputs.sh wrote to INPUTS_ROOT, keeps going past failures, and writes
@@ -21,7 +21,7 @@ case "$OUT/" in "$(CDPATH= cd "$REPO_ROOT" && pwd -P)/"*) die "OUT_DIR is inside
 rm -f "$OUT/census.tsv" "$OUT/summary.tsv" "$OUT/symbols.tsv"
 . "$REPO_ROOT/build/msc.sh"
 mode=$(sh "$SHIPYARD_SCRIPTS/mavericks_mode.sh")
-case "$mode" in native|cross) ;; *) die "mavericks_mode.sh answered '$mode'" ;; esac
+case "$mode" in mavericks|modern) ;; *) die "mavericks_mode.sh answered '$mode'" ;; esac
 CMAKE=shipyard-cmake
 command -v "$CMAKE" >/dev/null 2>&1 || CMAKE=/usr/local/mavergreen/bin/shipyard-cmake
 # platform: Ninja keeps each failed compile's diagnostics together under its FAILED: line, which is how
@@ -30,7 +30,7 @@ command -v ninja >/dev/null 2>&1 || PATH=/usr/local/mavergreen/bin:$PATH
 command -v ninja >/dev/null 2>&1 || die "no ninja: install the family's (it is in /usr/local/mavergreen/bin)"
 
 rm -rf "$OUT/build"
-"$CMAKE" -S "$REPO_ROOT/census" -B "$OUT/build" --preset "$mode" \
+"$CMAKE" -S "$REPO_ROOT/census" -B "$OUT/build" --preset x86_64 \
   -DITERM_INPUTS_FILE="$1/inputs.cmake" -DITERM_CENSUS_SETTINGS="$2" \
   -DITERM_CENSUS_PROJECT="${ITERM_CENSUS_PROJECT:-iTerm2.xcodeproj}" >"$OUT/configure.log" 2>&1 \
   || { tail -20 "$OUT/configure.log" >&2; die "the census did not configure (log: $OUT/configure.log)"; }

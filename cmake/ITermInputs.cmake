@@ -10,7 +10,7 @@
 if(NOT DEFINED ITERM_INPUTS_FILE OR "${ITERM_INPUTS_FILE}" STREQUAL "")
   message(FATAL_ERROR
     "ITERM_INPUTS_FILE is not set. Run build/prepare-inputs.sh OUTPUT_ROOT, then configure with a preset "
-    "(shipyard-cmake --preset native or cross), which passes OUTPUT_ROOT/inputs.cmake.")
+    "(shipyard-cmake --preset x86_64), which passes OUTPUT_ROOT/inputs.cmake.")
 endif()
 if(NOT IS_ABSOLUTE "${ITERM_INPUTS_FILE}" OR NOT EXISTS "${ITERM_INPUTS_FILE}")
   message(FATAL_ERROR
@@ -40,7 +40,7 @@ foreach(_iterm_check
     "ITERM_UPSTREAM_VERSION=^[0-9]+(\\.[0-9]+)*$"
     "ITERM_RESOURCES_SHA256=^[0-9a-f]+$"
     "ITERM_CLANG22_VERSION=^[0-9]+\\.[0-9]+\\.[0-9]+-mavericks\\.[1-9][0-9]*$"
-    "ITERM_MODE=^(native|cross)$")
+    "ITERM_MODE=^(mavericks|modern)$")
   string(FIND "${_iterm_check}" "=" _iterm_eq)
   string(SUBSTRING "${_iterm_check}" 0 ${_iterm_eq} _iterm_v)
   math(EXPR _iterm_eq "${_iterm_eq} + 1")
@@ -55,11 +55,8 @@ unset(_iterm_eq)
 unset(_iterm_v)
 unset(_iterm_re)
 unset(_iterm_len)
-if(DEFINED MAVERICKS_EXPECTED_MODE AND NOT MAVERICKS_EXPECTED_MODE STREQUAL ITERM_MODE)
-  message(FATAL_ERROR
-    "the inputs were prepared for a ${ITERM_MODE} build, but this configure is ${MAVERICKS_EXPECTED_MODE}: "
-    "prepare them on this host.")
-endif()
+# platform: record-build.sh reads the build's mode from the cache, where a plain variable never lands
+set(ITERM_MODE "${ITERM_MODE}" CACHE INTERNAL "the inputs' build mode: mavericks or modern")
 foreach(_iterm_lang C OBJC)
   if(DEFINED CMAKE_${_iterm_lang}_COMPILER
      AND NOT "${CMAKE_${_iterm_lang}_COMPILER}" STREQUAL "${ITERM_CLANG22_COMPILER}")

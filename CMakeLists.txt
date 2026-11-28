@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 # usage: sh build/prepare-inputs.sh "$TMPDIR/mm-build/mavergreen-iterm2-inputs"
-#        shipyard-cmake --preset native   (on 10.9; --preset cross on a modern Mac)
-#        shipyard-cmake --build --preset native
+#        shipyard-cmake --preset x86_64   (on 10.9 or a modern Mac)
+#        shipyard-cmake --build --preset x86_64
 # spec: BUILD.md "Inputs" -- the verified inputs are read, and their clang22 selected, before project(), so
 #       compiler detection runs only the verified family compiler.
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ITermInputs.cmake")
@@ -22,6 +22,11 @@ find_package(MavericksShipyard REQUIRED)
 #           AppleClang identity gate is off; the mode, pinned SDK and compatibility gates stay.
 set(MAVERICKS_REQUIRE_APPLECLANG OFF)
 include(Mavericks)
+# spec: BUILD.md "Inputs" -- the inputs name the host they were prepared on (shipyard's build mode: mavericks on
+#       10.9, modern elsewhere), and with it their clang22; a configure on the other kind of host is refused
+if(NOT MAVERICKS_MODE STREQUAL ITERM_MODE)
+  message(FATAL_ERROR "the inputs were prepared for a ${ITERM_MODE} build, but this host is ${MAVERICKS_MODE}: prepare them on this host.")
+endif()
 include(MavericksSDKMetadata)
 include(MavericksXcodeInputs)
 include(MavericksSparkle)

@@ -5,7 +5,7 @@
 #       compiles, and which is shipyard's to set
 set -eu
 REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
-B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-native}
+B=${ITERM_BUILD_DIR:-${MAVERICKS_BUILD_ROOT:-${TMPDIR:-/tmp}/mm-build}/$(basename "$REPO_ROOT")-x86_64}
 CC=$B/compile_commands.json
 [ -f "$CC" ] || { echo "optimization-test: no compile commands at $CC; skipping"; exit 77; }
 # platform: compile_commands.json writes one "file" per entry after its "command"
