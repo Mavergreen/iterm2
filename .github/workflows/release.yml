@@ -33,6 +33,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.full }}
       publish: ${{ steps.ver.outputs.release }}
+      mode: ${{ steps.ver.outputs.mode }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0, persist-credentials: false }
@@ -47,10 +48,12 @@ jobs:
           effective_local_release="$LOCAL_RELEASE"
           [ "$RECONCILE" = true ] && effective_local_release=true
           mode="$(LOCAL_RELEASE="$effective_local_release" sh "$SHIPYARD_SCRIPTS/release-mode.sh")"
-          out="$(sh build/version.sh "$mode")"
-          full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
-          rel="$(printf '%s\n' "$out" | sed -n 's/^RELEASE=//p')"
-          [ -n "$full" ] || { echo "::error::version.sh gave no FULL= line: $out"; exit 1; }
+          # spec: shipyard SKILL.md "Versioning" -- the declared scheme (INGREDIENTS.md: port) derives the tag
+          full="$(sh "$SHIPYARD_SCRIPTS/release-version.sh" --product iterm2 --mode "$mode")"
+          # spec: shipyard SKILL.md "Versioning" -- port publishes a new upstream (its tag does not exist yet)
+          #       and every repackage (local); a push that only rebuilds the shipped N does not
+          rel=no
+          if [ "$mode" = local ] || ! git rev-parse -q --verify "refs/tags/$full" >/dev/null; then rel=yes; fi
           [ "$GITHUB_REF_NAME" = main ] || rel=no
           # spec: shipyard SKILL.md "A release is a declared state, not an event" -- a reconcile
           #       dispatch publishes only while no release carries this tree's state
@@ -63,11 +66,32 @@ jobs:
               *) rel=no ;;
             esac
           fi
-          { echo "full=$full"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
+          { echo "full=$full"; echo "release=$rel"; echo "mode=$mode"; } >> "$GITHUB_OUTPUT"
           echo "version=$full publish=$rel"
 
-  build:
+  # spec: shipyard SKILL.md "Versioning" check 40c -- the tag is the scheme's, and a publishing run commits its notes
+  version-check:
     needs: ver
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: read }
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - id: tag
+        run: |
+          set -eu
+          t="$(sh "$SHIPYARD_SCRIPTS/release-version.sh" --product iterm2 --mode "${{ needs.ver.outputs.mode }}")"
+          [ "$t" = "${{ needs.ver.outputs.version }}" ] || { echo "::error::version-check derived $t, ver derived ${{ needs.ver.outputs.version }}"; exit 1; }
+          sh "$SHIPYARD_SCRIPTS/check-release-version.sh" --product iterm2 --version "$t" --sha "$GITHUB_SHA" \
+            --mode "${{ needs.ver.outputs.mode }}" --publishing ${{ needs.ver.outputs.publish == 'yes' && 'yes' || 'no' }}
+          echo "tag=$t" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [ver, version-check]
     runs-on: macos-26
     timeout-minutes: 180
     steps:
@@ -253,11 +277,15 @@ jobs:
     secrets: { SPARKLE_PRIVATE_KEY: "${{ secrets.SPARKLE_PRIVATE_KEY }}" }
 
   publish:
-    needs: [ver, collect, scan, vm-test]
+    needs: [ver, version-check, collect, scan, vm-test]
     if: needs.ver.outputs.publish == 'yes'
     permissions: { contents: write }
     uses: Mavergreen/shipyard/.github/workflows/publish-release.yml@v1
-    with: { version: "${{ needs.ver.outputs.version }}", artifact: mavergreen-iterm2 }
+    with:
+      version: "${{ needs.ver.outputs.version }}"
+      artifact: mavergreen-iterm2
+      product: iterm2
+      release-mode: "${{ needs.ver.outputs.mode }}"
 
   retry:
     needs: [ver, publish]
@@ -269,7 +297,7 @@ jobs:
   required:
     name: required (release)
     if: always()
-    needs: [ver, build, collect, vm-test, scan, publish, retry]
+    needs: [ver, version-check, build, collect, vm-test, scan, publish, retry]
     runs-on: ubuntu-latest
     steps:
       - uses: Mavergreen/shipyard/.github/actions/required-gate@v1

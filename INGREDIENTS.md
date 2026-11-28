@@ -13,6 +13,10 @@ This repository builds iTerm2 3.0.15 for Mac OS X 10.9 (x86_64), natively on 10.
 | Longboat (CI only) | `components/longboat/version` | `github-releases`, `YYYYMMDD.N` versioning | CI installs it for the 10.9 SDK that the clang22 pkgs require. Nothing shipped changes; no repackage. |
 | shipyard: presets, toolchain, the pinned 10.9 SDK, `MavericksSDKMetadata`, `MavericksXcodeInputs`, `MavericksResourceInputs`, `MavericksHostTools`, fetch and patch scripts | the installed shipyard pkg; in CI, `install@v1`, which also brings Sparkle 1.27.3 for the updater | Untrackable here: shipyard moves by its own releases | `build/prepare-inputs.sh` refuses a shipyard without the four modules. |
 
+## Versioning
+
+- port
+
 ## Deviations
 
 - **A weak reference to a post-10.9 class.** iTerm2 subclasses `NSTitlebarAccessoryViewController` (10.10), which 10.9's AppKit does not export, so the iTerm2 row's `WEAK_CLASSES` lets the link leave its class and metaclass symbols undefined (`-Wl,-U`). On 10.9 the Objective-C runtime leaves the subclass unrealized. The source never instantiates it: every use is inside `#if ENABLE_SHORTCUT_ACCESSORY`, which nothing defines. Retire it when Recaulk's recipes name their weak symbols and shipyard's overlay passes them to the link.
