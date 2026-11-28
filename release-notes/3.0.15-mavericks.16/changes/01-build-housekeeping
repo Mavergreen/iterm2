@@ -1,1 +1,1 @@
-Nothing changes in the app: the build follows shipyard's renamed toolchain presets and its declared release versioning.
+Nothing changes in how the app works: it is rebuilt with a newer compiler and compatibility library.
