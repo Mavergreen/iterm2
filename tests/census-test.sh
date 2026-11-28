@@ -49,7 +49,7 @@ TAB=$(printf '\t')
 census "$T/src/settings" "$T/out" || { tail -30 "$T/log" >&2; fail "census.sh failed on the fixture"; }
 if [ -f "$T/out/census.tsv" ]; then
   [ "$(row ok.m | cut -f1)" = ok ] || fail "clean_file_ok: ok.m is '$(row ok.m)'"
-  [ "$(row gap.m)" = "error${TAB}no-method${TAB}currentDrawingAppearance" ] || fail "missing_api_classified: gap.m is '$(row gap.m)'"
+  [ "$(row gap.m)" = "error${TAB}no-method${TAB}censusFixtureNoSuchMethod" ] || fail "missing_api_classified: gap.m is '$(row gap.m)'"
   [ "$(row hdr.m)" = "error${TAB}missing-header${TAB}UserNotifications/UserNotifications.h" ] \
     || fail "missing_header_classified: hdr.m is '$(row hdr.m)'"
   grep -qx "App${TAB}6${TAB}1${TAB}5" "$T/out/summary.tsv" || fail "summary_counts: App is not 6 compiled, 1 ok, 5 error: $(cat "$T/out/summary.tsv")"
@@ -58,8 +58,8 @@ if [ -f "$T/out/census.tsv" ]; then
   #       retain is an error, under MRC (Lib) it is fine
   [ "$(row shared.m App | cut -f1)" = error ] || fail "shared_source_per_target: App's shared.m is '$(row shared.m App)'"
   [ "$(row shared.m Lib | cut -f1)" = ok ] || fail "shared_source_per_target: Lib's shared.m is '$(row shared.m Lib)'"
-  grep -qx "undeclared-identifier${TAB}NSAppearanceNameDarkAqua${TAB}2" "$T/out/symbols.tsv" \
-    || fail "symbols_deduplicated: $(grep DarkAqua "$T/out/symbols.tsv")"
+  grep -qx "undeclared-identifier${TAB}CensusFixtureUndeclaredName${TAB}2" "$T/out/symbols.tsv" \
+    || fail "symbols_deduplicated: $(grep CensusFixtureUndeclaredName "$T/out/symbols.tsv")"
 else
   fail "census.sh wrote no census.tsv"
 fi
